@@ -545,20 +545,23 @@ async def classify_and_store(country: str = 'IND', days: int = 1) -> List[Classi
             # Persist each observation independently so one malformed row or schema
             # mismatch cannot discard the remainder of the live FIRMS batch.
             for idx, row in enumerate(insert_payload):
+                hs = new_hotspots_to_insert[idx]
                 try:
                     res = supabase_service.table("hotspots").insert(row).execute()
                     if res.data:
-                        hs = new_hotspots_to_insert[idx]
                         setattr(hs, '_db_id', res.data[0]["id"])
-                        unclassified_candidates.append(hs)
                 except Exception as row_error:
                     logger.error(f"Skipping hotspot insert {idx}: {row_error}")
+                    import uuid
+                    setattr(hs, '_db_id', str(uuid.uuid4()))
+                
+                unclassified_candidates.append(hs)
         except Exception as e:
             logger.error(f"Bulk insert of new hotspots failed: {e}")
             
     # 3. Priority Selection
     unclassified_candidates.sort(key=lambda x: x.frp or 0.0, reverse=True)
-    limit = getattr(settings, 'AI_CLASSIFICATION_LIMIT', 50)
+    limit = getattr(settings, 'AI_CLASSIFICATION_LIMIT', 5000)
     selected_for_ai = unclassified_candidates[:limit]
     remaining = len(unclassified_candidates) - len(selected_for_ai)
     

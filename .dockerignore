@@ -1,0 +1,16 @@
+.git
+.gitignore
+node_modules
+frontend/node_modules
+frontend/.next
+frontend/.env.local
+frontend/.env.*.local
+backend/venv
+backend/__pycache__
+backend/.pytest_cache
+backend/.env
+backend/scratch
+scratch
+*.log
+.DS_Store
+Thumbs.db

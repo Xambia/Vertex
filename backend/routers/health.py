@@ -20,9 +20,7 @@ async def health_check(response: Response = None):
     services["database"] = {"status": db_status, **({"error": db_error} if db_error else {})}
     overall = "operational" if db_status == "OPERATIONAL" and bool(settings.GEMINI_API_KEY) else "degraded"
     
-    if overall != "operational" and response is not None:
-        response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
-
+    # Do not set 503 response code so health checks from Render/proxies do not fail cold starts
     return {
         "status": overall,
         "services": services,

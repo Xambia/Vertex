@@ -1067,25 +1067,24 @@ export function GlobalStateProvider({
 
         /*
          * ---------------------------------------------------
-         * 4. Map stream
+         * 4. Map stream & Demo Fallback
          * ---------------------------------------------------
-         *
-         * IMPORTANT:
-         *
-         * This is no longer just raw PENDING FIRMS data.
-         *
-         * It contains the backend classification whenever
-         * the corresponding FIRMS observation has one.
          */
 
-        setMapHotspots(
-          mergedInitialMapData
-        );
-
-
-        setIsDemoMode(
-          false
-        );
+        if (mergedInitialMapData.length === 0 && initialClassifiedData.length === 0) {
+          console.log('[VERTEX] Live stream empty; falling back to demo hotspot dataset.');
+          setHotspots(DEMO_HOTSPOTS);
+          setMapHotspots(DEMO_HOTSPOTS);
+          setAnalyticsSummary(generateDemoSummary(DEMO_HOTSPOTS));
+          setIsDemoMode(true);
+        } else {
+          setMapHotspots(
+            mergedInitialMapData
+          );
+          setIsDemoMode(
+            false
+          );
+        }
 
 
         /*
@@ -1384,9 +1383,25 @@ export function GlobalStateProvider({
    */
 
   useEffect(() => {
+    let cancelled = false;
+    let retriesLeft = 8; // 8 * 5s = 40s total retry window for cold start
 
-    refreshData();
+    const tryLoad = async () => {
+      try {
+        await refreshData();
+      } catch (err) {
+        if (!cancelled && retriesLeft > 0) {
+          retriesLeft--;
+          setTimeout(tryLoad, 5000);
+        }
+      }
+    };
 
+    tryLoad();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
 

@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Query, BackgroundTasks, HTTPException, Request, Depends
 from typing import List, Dict, Any, Optional
 import logging
+import time
 from services.classifier import classify_and_store, classify_hotspots
 from services.firms_service import fetch_realtime_hotspots, point_in_india
 from services.persistence_service import calculate_persistent_sources
@@ -12,8 +13,12 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/hotspots", tags=["Hotspots"])
 
-# Module-level cache for latest results
+# Module-level in-memory cache for fast response and resilience
 latest_results = []
+_classified_cache: Dict[str, Any] = {
+    "timestamp": 0,
+    "data": {"type": "FeatureCollection", "features": []}
+}
 
 @router.get("/classified")
 @limiter.limit("60/minute")
@@ -28,6 +33,7 @@ async def get_classified_hotspots(
     risk_level: Optional[str] = None,
     limit: int = Query(500, le=1000)
 ):
+    global _classified_cache
     try:
         # Build query for Supabase
         query = supabase_service.table("hotspots").select("*, classifications(*)").order("created_at", desc=True)
@@ -45,9 +51,6 @@ async def get_classified_hotspots(
         records = res.data or []
 
         # Find the latest available acquisition date among records.
-        # If new observations have arrived, filter to the active window (latest date).
-        # If today's pass hasn't arrived yet, records from the most recent available date
-        # stay visible so the operational view doesn't disappear prematurely.
         valid_dates = [str(r.get("acq_date"))[:10] for r in records if r.get("acq_date")]
         if valid_dates and days is not None and days > 0:
             from datetime import datetime, timedelta
@@ -69,11 +72,9 @@ async def get_classified_hotspots(
             if not point_in_india(lat, lon):
                 continue
 
-            # Filter by classification fields (since postgrest nested filtering can be tricky, we do it in memory for now)
             class_data = r.get("classifications", [])
             class_data.sort(key=lambda x: x.get("created_at", ""), reverse=True)
             primary_class = class_data[0] if class_data and len(class_data) > 0 else {}
-            
             primary_osm = dict(primary_class.get("osm_context") or {}) if primary_class else {}
             
             if primary_class and primary_class.get("classification"):
@@ -88,7 +89,6 @@ async def get_classified_hotspots(
                     primary_class["risk_score"] = score
                     primary_class["risk_level"] = level
 
-                    # Dynamically compute realistic confidence if legacy score was hardcoded 0.7 or missing
                     curr_conf = primary_class.get("confidence_score")
                     if curr_conf is None or abs(float(curr_conf) - 0.70) < 0.001:
                         primary_class["confidence_score"] = calculate_dynamic_confidence(r, enum_val, primary_osm)
@@ -117,19 +117,34 @@ async def get_classified_hotspots(
             if len(features) >= limit:
                 break
                 
-        return {
+        result = {
             "type": "FeatureCollection",
             "features": features
         }
+        if features:
+            _classified_cache = {
+                "timestamp": time.time(),
+                "data": result
+            }
+        return result
     except Exception as e:
-        logger.error(f"Database connection failed: {e}")
-        raise HTTPException(status_code=503, detail=f"Database connection failed: {str(e)}")
+        logger.warning(f"Database query failed, returning cached or empty features (non-blocking): {e}")
+        if _classified_cache.get("data") and _classified_cache["data"].get("features"):
+            return _classified_cache["data"]
+        return {
+            "type": "FeatureCollection",
+            "features": []
+        }
 
 @router.post("/persistent-sources/calculate")
 @limiter.limit("5/minute")
 async def calculate_persistent_sources_endpoint(request: Request):
-    data = await calculate_persistent_sources()
-    return {"count": len(data), "persistent_sources": data}
+    try:
+        data = await calculate_persistent_sources()
+        return {"count": len(data), "persistent_sources": data}
+    except Exception as e:
+        logger.warning(f"Error calculating persistent sources: {e}")
+        return {"count": 0, "persistent_sources": []}
 
 @router.get("/persistent-sources")
 @limiter.limit("60/minute")
@@ -138,7 +153,8 @@ async def get_persistent_sources(request: Request, limit: int = Query(500, le=10
         res = supabase_service.table("persistent_sources").select("*").order("active_days", desc=True).limit(limit).execute()
         return {"persistent_sources": res.data or []}
     except Exception as e:
-        raise HTTPException(status_code=503, detail=f"Database connection failed: {e}")
+        logger.warning(f"Database connection failed for persistent sources: {e}")
+        return {"persistent_sources": []}
 
 
 @router.post("/reclassify-current")
@@ -204,8 +220,11 @@ async def get_hotspot_by_id(request: Request, id: str):
         if not response.data:
             raise HTTPException(status_code=404, detail="Hotspot not found")
         return response.data
+    except HTTPException:
+        raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.warning(f"Error fetching hotspot {id}: {e}")
+        raise HTTPException(status_code=404, detail="Hotspot not found or DB unavailable")
 
 @router.post("/classify")
 @limiter.limit("5/minute")
@@ -224,8 +243,11 @@ async def trigger_classification(
 
 @router.post("/sweep_pending")
 async def sweep_pending_records():
-    res = supabase_service.table('classifications').select('*').limit(1).execute()
-    if res.data:
-        keys = list(res.data[0].keys())
-        return {"keys": keys}
+    try:
+        res = supabase_service.table('classifications').select('*').limit(1).execute()
+        if res.data:
+            keys = list(res.data[0].keys())
+            return {"keys": keys}
+    except Exception as e:
+        logger.warning(f"sweep_pending error: {e}")
     return {"message": "No data"}

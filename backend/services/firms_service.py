@@ -45,6 +45,13 @@ ALL_FIRMS_SOURCES = [
     'MODIS_NRT'
 ]
 
+FALLBACK_SOURCE_ORDER = [
+    'VIIRS_SNPP_NRT',
+    'VIIRS_NOAA20_NRT',
+    'VIIRS_NOAA21_NRT',
+    'MODIS_NRT'
+]
+
 async def fetch_realtime_hotspots(
     country: str = 'IND',
     days: int = 1,
@@ -55,6 +62,7 @@ async def fetch_realtime_hotspots(
     Fetch real-time FIRMS hotspots. Uses area/bbox API (more reliable than country API).
     Defaults to India's bounding box to keep processing bounded.
     When source='ALL' (default), queries all operational satellite feeds concurrently.
+    Includes multi-source fallback (VIIRS_SNPP -> NOAA20 -> NOAA21 -> MODIS).
     """
     if bbox is None:
         bbox = INDIA_BBOX
@@ -85,13 +93,34 @@ async def fetch_realtime_hotspots(
                 seen.add(key)
                 hotspots.append(h)
 
+    # Multi-source sequential fallback if single source requested returned nothing
+    if not hotspots and len(sources_to_query) == 1 and sources_to_query[0] != 'ALL':
+        logger.info(f"Source {sources_to_query[0]} returned no hotspots, falling back through alternate FIRMS sources...")
+        for fallback_src in FALLBACK_SOURCE_ORDER:
+            if fallback_src == sources_to_query[0]:
+                continue
+            fallback_batch = await _fetch_and_parse(
+                f"https://firms.modaps.eosdis.nasa.gov/api/area/csv/{settings.FIRMS_MAP_KEY}/{fallback_src}/{bbox}/{days}"
+            )
+            if fallback_batch:
+                for h in fallback_batch:
+                    if not point_in_india(h.latitude, h.longitude):
+                        continue
+                    key = (round(h.latitude, 5), round(h.longitude, 5), str(h.acq_date), str(h.acq_time), str(h.satellite))
+                    if key not in seen:
+                        seen.add(key)
+                        hotspots.append(h)
+                if hotspots:
+                    logger.info(f"Fallback source {fallback_src} succeeded with {len(hotspots)} hotspots.")
+                    break
+
     # If days=1 returned no hotspots (e.g. early morning before today's daytime satellite pass arrives),
     # fallback to 2 days and retain the latest available date so situational awareness is never blank.
     if not hotspots and days == 1:
         logger.info("No hotspots returned for days=1, querying days=2 to retrieve latest satellite pass...")
         tasks_fallback = [
             _fetch_and_parse(f"https://firms.modaps.eosdis.nasa.gov/api/area/csv/{settings.FIRMS_MAP_KEY}/{s}/{bbox}/2")
-            for s in sources_to_query
+            for s in ALL_FIRMS_SOURCES
         ]
         results_fallback = await asyncio.gather(*tasks_fallback, return_exceptions=True)
         fallback_hotspots = []
@@ -149,10 +178,33 @@ async def fetch_area_hotspots(
                 seen.add(key)
                 hotspots.append(h)
 
+    # Multi-source fallback if single source requested returned nothing
+    if not hotspots and len(sources_to_query) == 1 and sources_to_query[0] != 'ALL':
+        for fallback_src in FALLBACK_SOURCE_ORDER:
+            if fallback_src == sources_to_query[0]:
+                continue
+            fallback_batch = await _fetch_and_parse(
+                f"https://firms.modaps.eosdis.nasa.gov/api/area/csv/{settings.FIRMS_MAP_KEY}/{fallback_src}/{bbox}/{days}"
+            )
+            if fallback_batch:
+                for h in fallback_batch:
+                    if not point_in_india(h.latitude, h.longitude):
+                        continue
+                    key = (round(h.latitude, 5), round(h.longitude, 5), str(h.acq_date), str(h.acq_time), str(h.satellite))
+                    if key not in seen:
+                        seen.add(key)
+                        hotspots.append(h)
+                if hotspots:
+                    break
+
     hotspots.sort(key=lambda h: h.frp or 0.0, reverse=True)
     return hotspots
 
 async def _fetch_and_parse(url: str) -> List[FIRMSHotspot]:
+    if not settings.FIRMS_MAP_KEY:
+        logger.warning("FIRMS_MAP_KEY not configured, skipping live FIRMS query.")
+        return []
+
     async with httpx.AsyncClient(verify=False) as client:
         try:
             response = await client.get(url, timeout=60.0)

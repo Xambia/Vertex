@@ -1,26 +1,33 @@
 import httpx
-
-# Ensure httpx/postgrest clients work smoothly without SSL certificate bundle errors on Windows
-_original_sync_init = httpx.Client.__init__
-httpx.Client.__init__ = lambda self, *args, **kwargs: _original_sync_init(self, *args, **{**kwargs, 'verify': False})
-_original_async_init = httpx.AsyncClient.__init__
-httpx.AsyncClient.__init__ = lambda self, *args, **kwargs: _original_async_init(self, *args, **{**kwargs, 'verify': False})
-
+import logging
 from supabase import create_client, Client
 from config import settings
 
-# Initialize singleton clients
+logger = logging.getLogger(__name__)
+
+# Ensure httpx/postgrest clients work smoothly without SSL certificate bundle errors on Windows
+try:
+    _original_sync_init = httpx.Client.__init__
+    httpx.Client.__init__ = lambda self, *args, **kwargs: _original_sync_init(self, *args, **{**kwargs, 'verify': False})
+    _original_async_init = httpx.AsyncClient.__init__
+    httpx.AsyncClient.__init__ = lambda self, *args, **kwargs: _original_async_init(self, *args, **{**kwargs, 'verify': False})
+except Exception:
+    pass
+
+# Initialize singleton clients with fallback
 def get_supabase_client(use_service_key: bool = False) -> Client:
-    url: str = settings.SUPABASE_URL
-    key: str = settings.SUPABASE_SERVICE_KEY if use_service_key else settings.SUPABASE_ANON_KEY
-    return create_client(url, key)
+    url: str = settings.SUPABASE_URL or "https://placeholder.supabase.co"
+    key: str = (
+        settings.effective_supabase_service_key if use_service_key else settings.effective_supabase_anon_key
+    ) or "placeholder-key"
+    try:
+        return create_client(url, key)
+    except Exception as e:
+        logger.warning(f"Failed to create Supabase client (use_service_key={use_service_key}): {e}")
+        return create_client("https://placeholder.supabase.co", "placeholder-key")
 
 supabase_anon: Client = get_supabase_client(use_service_key=False)
 supabase_service: Client = get_supabase_client(use_service_key=True)
-
-import logging
-
-logger = logging.getLogger(__name__)
 
 async def seed_admin_user():
     if not settings.ADMIN_EMAIL or not settings.ADMIN_PASSWORD:
@@ -49,4 +56,3 @@ async def seed_admin_user():
         logger.info("Admin user seeded successfully.")
     except Exception as e:
         logger.warning(f"Skipping admin seed - database unreachable: {e}")
-

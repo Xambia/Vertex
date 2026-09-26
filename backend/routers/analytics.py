@@ -1,14 +1,25 @@
 from fastapi import APIRouter, Request
 from routers.hotspots import latest_results
 from limiter import limiter
-
+import logging
 from services.firms_service import point_in_india
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/analytics", tags=["Analytics"])
 
 @router.get("/summary")
 @limiter.limit("30/minute")
 async def get_analytics_summary(request: Request):
+    default_summary = {
+        "total_hotspots": 0,
+        "total_firms_observations": 0,
+        "ai_classified": 0,
+        "ai_pending": 0,
+        "classification_counts": {},
+        "risk_level_counts": {},
+        "frp_statistics": {"min": 0, "max": 0, "avg": 0}
+    }
     try:
         from db.supabase_client import supabase_service
         
@@ -27,15 +38,7 @@ async def get_analytics_summary(request: Request):
             start += page_size
             
         if not all_data:
-            return {
-                "total_hotspots": 0,
-                "total_firms_observations": 0,
-                "ai_classified": 0,
-                "ai_pending": 0,
-                "classification_counts": {},
-                "risk_level_counts": {},
-                "frp_statistics": {"min": 0, "max": 0, "avg": 0}
-            }
+            return default_summary
         
         counts = {}
         risks = {}
@@ -57,7 +60,6 @@ async def get_analytics_summary(request: Request):
             has_valid_classification = False
             
             if class_data and len(class_data) > 0:
-                # Sort by created_at desc and take the latest
                 class_data.sort(key=lambda x: x.get("created_at", ""), reverse=True)
                 latest = class_data[0]
                 clf = latest.get("classification", "UNKNOWN")
@@ -88,5 +90,5 @@ async def get_analytics_summary(request: Request):
             }
         }
     except Exception as e:
-        from fastapi import HTTPException
-        raise HTTPException(status_code=503, detail=f"Database connection failed: {str(e)}")
+        logger.warning(f"Database query failed in analytics summary (returning fallback): {e}")
+        return default_summary

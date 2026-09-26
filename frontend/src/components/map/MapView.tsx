@@ -154,7 +154,7 @@ export function MapView({
   const onClick = useCallback((event: MapLayerMouseEvent) => {
     const feature = event.features?.find((item) => item?.layer?.id === 'unclustered-point');
     if (!feature) {
-      onSelectHotspot?.(null);
+      // Map only deselects via X button (not background click)
       return;
     }
     const clickedId = String(feature.properties?.id ?? '');
