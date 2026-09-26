@@ -1,4 +1,5 @@
 import logging
+import asyncio
 from typing import List, Union, Any, Optional
 from config import settings
 from models.hotspot import FIRMSHotspot
@@ -142,7 +143,7 @@ def calculate_dynamic_confidence(
             spatial_mod += 0.06
         if nearest_dist is None or nearest_dist > 3000:
             spatial_mod += 0.04
-    elif cls_str == 'ACCIDENTAL_INDUSTRIAL_FIRE':
+    elif cls_str in ('INDUSTRIAL_FIRE', 'ACCIDENTAL_INDUSTRIAL_FIRE'):
         if nearest_dist is not None and nearest_dist < 500 and frp > 30.0:
             spatial_mod += 0.12
 
@@ -177,7 +178,23 @@ def generate_dynamic_explanation(
     b_val = getattr(hotspot, 'brightness', None) or getattr(hotspot, 'bright_ti4', None)
     b_temp = f" with thermal brightness of {b_val:.1f} K" if b_val else ""
 
-    if classification == ClassificationEnum.GAS_FLARE:
+    if classification == ClassificationEnum.INDUSTRIAL_FIRE:
+        target = fac_name or "industrial facility"
+        dist_desc = f"at/adjacent to {target} ({dist_str})" if dist_str else f"at {target}"
+        explanation = (
+            f"Acute elevated thermal emission ({frp:.1f} MW{b_temp}) detected {dist_desc} during {timing} pass. "
+            f"High radiative intensity within industrial infrastructure boundary indicates an active structural or industrial fire hazard requiring immediate verification."
+        )
+        evidence = [
+            f"Radiative Power: {frp:.1f} MW",
+            f"Infrastructure Proximity: {dist_str or 'Within industrial zone'}",
+            f"Target: {target}",
+            f"Overpass: {timing.capitalize()} ({inst}{sat})",
+            "Hazard Level: High Acute Industrial Risk"
+        ]
+        return explanation, evidence
+
+    elif classification == ClassificationEnum.GAS_FLARE:
         target = fac_name or "industrial facility"
         dist_desc = f"located {dist_str} from {target}" if dist_str else f"near {target}"
         explanation = (
@@ -186,7 +203,7 @@ def generate_dynamic_explanation(
         )
         evidence = [
             f"Radiative Power: {frp:.1f} MW",
-            f"Facility Proximity: {dist_str or '<500m'}",
+            f"Facility Proximity: {dist_str or 'Directly on-site'}",
             f"Target: {target}",
             f"Overpass: {timing.capitalize()} ({inst}{sat})"
         ]
@@ -247,8 +264,12 @@ async def classify_hotspot_with_context(hotspot: FIRMSHotspot, osm_context: OSMC
     near_industry = nearest_dist is not None and nearest_dist <= 1000
     very_near_industry = nearest_dist is not None and nearest_dist < 500
     
+    land_use = set(osm_context.land_use_context or [])
+    has_forest_tag = any(t in land_use for t in ["FOREST", "FOREST_WOOD", "WOOD", "NATURE_RESERVE"])
+    has_farm_tag = any(t in land_use for t in ["FARMLAND", "CROPLAND", "AGRICULTURAL", "ORCHARD", "FARMYARD"])
+
     classification_result = None
-    
+
     if very_near_industry and frp > 50:
         cls_enum = ClassificationEnum.GAS_FLARE
         exp_text, ev_list = generate_dynamic_explanation(cls_enum, hotspot, osm_context)
@@ -269,7 +290,7 @@ async def classify_hotspot_with_context(hotspot: FIRMSHotspot, osm_context: OSMC
             evidence=ev_list,
             source_data={"method": "rule_based", "model": settings.GEMINI_MODEL}
         )
-    elif not near_industry and frp >= 15:
+    elif not near_industry and (has_forest_tag or frp >= 25.0):
         cls_enum = ClassificationEnum.WILDFIRE_FOREST_FIRE
         exp_text, ev_list = generate_dynamic_explanation(cls_enum, hotspot, osm_context)
         classification_result = ClassificationResult(
@@ -279,7 +300,7 @@ async def classify_hotspot_with_context(hotspot: FIRMSHotspot, osm_context: OSMC
             evidence=ev_list,
             source_data={"method": "rule_based", "model": settings.GEMINI_MODEL}
         )
-    elif not near_industry and not osm_context.near_water and frp < 25 and is_daytime:
+    elif not near_industry and has_farm_tag and not osm_context.near_water and is_daytime:
         cls_enum = ClassificationEnum.AGRICULTURAL_BURN
         exp_text, ev_list = generate_dynamic_explanation(cls_enum, hotspot, osm_context)
         classification_result = ClassificationResult(
@@ -290,23 +311,73 @@ async def classify_hotspot_with_context(hotspot: FIRMSHotspot, osm_context: OSMC
             source_data={"method": "rule_based", "model": settings.GEMINI_MODEL}
         )
         
-    if not classification_result or (near_industry and frp >= 10):
+    should_call_gemini = (
+        classification_result is None
+        or (
+            near_industry
+            and frp >= 10
+            and getattr(classification_result, "classification", None) != ClassificationEnum.GAS_FLARE
+        )
+    )
+    if should_call_gemini:
         gemini_result = await classify_with_gemini(hotspot, osm_context)
         if gemini_result:
-            classification_result = gemini_result
+            if gemini_result.classification == ClassificationEnum.UNKNOWN_UNCERTAIN and "Error" in (gemini_result.explanation or ""):
+                # Gemini errored out (e.g. 429 rate limit or timeout); pass to expert rules fallback
+                pass
+            else:
+                classification_result = gemini_result
             
     if not classification_result:
+        # Fallback heuristic if Gemini API is unreachable or rate-limited
+        if near_industry:
+            if frp >= 15.0 or (not is_daytime and frp >= 8.0):
+                fallback_cls = ClassificationEnum.GAS_FLARE
+            elif frp >= 25.0:
+                fallback_cls = ClassificationEnum.INDUSTRIAL_FIRE
+            else:
+                fallback_cls = ClassificationEnum.PERSISTENT_INDUSTRIAL_SOURCE
+        elif frp >= 15.0 or has_forest_tag:
+            fallback_cls = ClassificationEnum.WILDFIRE_FOREST_FIRE
+        elif is_daytime and not osm_context.near_water:
+            fallback_cls = ClassificationEnum.AGRICULTURAL_BURN
+        elif not is_daytime and frp < 5.0:
+            fallback_cls = ClassificationEnum.PERSISTENT_INDUSTRIAL_SOURCE
+        else:
+            fallback_cls = ClassificationEnum.OTHER_THERMAL_ANOMALY
+
+        exp_text, ev_list = generate_dynamic_explanation(fallback_cls, hotspot, osm_context)
         classification_result = ClassificationResult(
-            classification=ClassificationEnum.UNKNOWN_UNCERTAIN,
-            confidence_score=0.1,
-            explanation="Could not definitively classify the hotspot.",
-            evidence=[],
-            source_data={"method": "fallback"}
+            classification=fallback_cls,
+            confidence_score=calculate_dynamic_confidence(hotspot, fallback_cls, osm_context),
+            explanation=exp_text,
+            evidence=ev_list,
+            source_data={"method": "expert_rules_fallback"}
         )
+
+    # STRICT DOMAIN GUARDRAIL: Stubble/crop residue burning NEVER occurs at night in India.
+    # Override any erroneous agricultural burn on nighttime satellite passes.
+    if classification_result.classification == ClassificationEnum.AGRICULTURAL_BURN and not is_daytime:
+        if near_industry:
+            classification_result.classification = ClassificationEnum.PERSISTENT_INDUSTRIAL_SOURCE if frp < 15.0 else ClassificationEnum.GAS_FLARE
+            fac_name = osm_context.nearby_facilities[0].get("name") if osm_context.nearby_facilities else "industrial facility"
+            classification_result.explanation = f"Nocturnal thermal signature ({frp} MW) detected adjacent to {fac_name}. Agricultural burning is ruled out for nighttime satellite passes; pattern matches active operational heat emission."
+            classification_result.evidence = [
+                f"Radiative Power: {frp} MW",
+                "Detection: Nocturnal satellite overpass (stubble burning ruled out)",
+                f"Facility Alignment: {fac_name} ({nearest_dist}m)"
+            ]
+        elif has_forest_tag or frp >= 15.0:
+            classification_result.classification = ClassificationEnum.WILDFIRE_FOREST_FIRE
+            classification_result.explanation = f"Nocturnal thermal anomaly ({frp} MW) in vegetative terrain. Nighttime detection rules out crop burning; signature indicates active vegetative wildfire."
+        else:
+            classification_result.classification = ClassificationEnum.PERSISTENT_INDUSTRIAL_SOURCE if frp < 5.0 else ClassificationEnum.OTHER_THERMAL_ANOMALY
+            classification_result.explanation = f"Nocturnal low-radiance thermal anomaly ({frp} MW). Agricultural burning does not occur during nighttime passes; signature represents persistent industrial heat or localized thermal process."
+        classification_result.confidence_score = calculate_dynamic_confidence(hotspot, classification_result.classification, osm_context)
         
     if not classification_result.source_data:
         classification_result.source_data = {}
-    classification_result.source_data['osm_source'] = osm_context.osm_source
+    classification_result.source_data['osm_source'] = osm_context.osm_source.value if hasattr(osm_context.osm_source, 'value') else str(osm_context.osm_source)
     if len(osm_context.nearby_facilities) > 0:
         fac = osm_context.nearby_facilities[0]
         classification_result.source_data['facility_name'] = fac.get('name')
@@ -329,28 +400,42 @@ async def classify_hotspot_with_context(hotspot: FIRMSHotspot, osm_context: OSMC
         osm_context=osm_context
     )
 
-async def classify_hotspots(hotspots: List[FIRMSHotspot]) -> List[ClassifiedHotspot]:
+async def classify_hotspots(hotspots: List[FIRMSHotspot], concurrency: int = 5) -> List[ClassifiedHotspot]:
     from services.firms_service import point_in_india
-    classified_results = []
     
+    valid_hotspots = []
     for hotspot in hotspots:
         if hotspot.frp is None or hotspot.frp <= 0:
             continue
-            
-        # Guarantee no AI / rule classification occurs outside India
         if not point_in_india(hotspot.latitude, hotspot.longitude):
             logger.info(f"Skipping classification for hotspot ({hotspot.latitude}, {hotspot.longitude}) outside India.")
             continue
+        valid_hotspots.append(hotspot)
 
-        try:
-            osm_context = await enrich_hotspot(hotspot)
-        except Exception as e:
-            logger.warning(f"OSM enrichment failed for hotspot: {e}")
-            osm_context = OSMContext(osm_source=OSMSourceEnum.FAILED)
-            
-        classified = await classify_hotspot_with_context(hotspot, osm_context)
-        classified_results.append(classified)
-        
+    if not valid_hotspots:
+        return []
+
+    sem = asyncio.Semaphore(concurrency)
+
+    async def _classify_one(hotspot: FIRMSHotspot) -> ClassifiedHotspot:
+        async with sem:
+            try:
+                osm_context = await enrich_hotspot(hotspot)
+            except Exception as e:
+                logger.debug(f"OSM enrichment failed for hotspot: {e}")
+                osm_context = OSMContext(osm_source=OSMSourceEnum.FAILED)
+            return await classify_hotspot_with_context(hotspot, osm_context)
+
+    tasks = [_classify_one(h) for h in valid_hotspots]
+    results = await asyncio.gather(*tasks, return_exceptions=True)
+
+    classified_results = []
+    for r in results:
+        if isinstance(r, Exception):
+            logger.error(f"Error classifying hotspot: {r}")
+            continue
+        classified_results.append(r)
+
     return classified_results
 
 def persist_classification(classified_result: ClassifiedHotspot, db_client=None) -> str:
@@ -492,7 +577,7 @@ async def classify_and_store(country: str = 'IND', days: int = 1) -> List[Classi
                 
                 cls_data = {
                     "hotspot_id": db_id,
-                    "classification": cls.classification.value,
+                    "classification": cls.classification.value if hasattr(cls.classification, "value") else str(cls.classification),
                     "confidence_score": cls.confidence_score,
                     "explanation": cls.explanation,
                     "evidence": cls.evidence,

@@ -60,9 +60,19 @@ function getFallbackContext(lat: number, lon: number) {
     const dist = getHaversineMeters(lat, lon, fac.latitude, fac.longitude);
     if (dist < minDist) {
       minDist = dist;
-      const clampedDist = Math.min(Math.round(dist), 950);
-      nearest = { name: fac.name, type: fac.type, distance_m: clampedDist, distance_meters: clampedDist };
+      const actualDist = Math.round(dist);
+      nearest = { name: fac.name, type: fac.type, distance_m: actualDist, distance_meters: actualDist };
     }
+  }
+  if (minDist > 1000) {
+    return {
+      nearby_facilities: [],
+      nearest_facility_distance: null,
+      nearest_facility_type: null,
+      facility_count_in_radius: 0,
+      land_use_context: [],
+      osm_source: 'OFFLINE_CATALOG',
+    };
   }
   return {
     nearby_facilities: nearest ? [nearest] : [],

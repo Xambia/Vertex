@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useGlobalState } from '@/lib/GlobalStateContext';
 import {
   ClassifiedHotspot,
@@ -47,6 +47,14 @@ export function Sidebar({
     'STREAM' | 'FILTER' | 'LAYERS'
   >('STREAM');
 
+  const selectedRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (selectedRef.current) {
+      selectedRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+  }, [selectedId]);
+
   const riskOrder: Record<string, number> = {
     CRITICAL: 0,
     HIGH: 1,
@@ -54,31 +62,24 @@ export function Sidebar({
     LOW: 3,
   };
 
+  const isClassified = (h: ClassifiedHotspot) =>
+    Boolean(
+      h?.classification?.classification &&
+      h.classification.classification !== ClassificationType.UNCLASSIFIED
+    );
+
   const sortedHotspots = useMemo(() => {
     let filtered = sourceHotspots;
 
     if (streamFilter === 'CLASSIFIED') {
-      filtered = sourceHotspots.filter(
-        (h) =>
-          h.classification?.classification !==
-          ClassificationType.UNCLASSIFIED
-      );
+      filtered = sourceHotspots.filter(isClassified);
     } else if (streamFilter === 'PENDING') {
-      filtered = sourceHotspots.filter(
-        (h) =>
-          h.classification?.classification ===
-          ClassificationType.UNCLASSIFIED
-      );
+      filtered = sourceHotspots.filter((h) => !isClassified(h));
     }
 
     return [...filtered].sort((a, b) => {
-      const aClassified =
-        a.classification?.classification !==
-        ClassificationType.UNCLASSIFIED;
-
-      const bClassified =
-        b.classification?.classification !==
-        ClassificationType.UNCLASSIFIED;
+      const aClassified = isClassified(a);
+      const bClassified = isClassified(b);
 
       if (aClassified && !bClassified) {
         return -1;
@@ -89,24 +90,25 @@ export function Sidebar({
       }
 
       if (aClassified && bClassified) {
-        const aRisk =
-          riskOrder[
-            a.classification.risk_level || 'LOW'
-          ] ?? 4;
+        const aRisk = String(a?.classification?.risk_level || 'LOW').toUpperCase();
+        const bRisk = String(b?.classification?.risk_level || 'LOW').toUpperCase();
+        const aRank = riskOrder[aRisk] ?? 4;
+        const bRank = riskOrder[bRisk] ?? 4;
 
-        const bRisk =
-          riskOrder[
-            b.classification.risk_level || 'LOW'
-          ] ?? 4;
+        if (aRank !== bRank) {
+          return aRank - bRank;
+        }
 
-        if (aRisk !== bRisk) {
-          return aRisk - bRisk;
+        const aScore = Number(a?.classification?.risk_score ?? 0);
+        const bScore = Number(b?.classification?.risk_score ?? 0);
+        if (aScore !== bScore) {
+          return bScore - aScore;
         }
       }
 
       return (
-        (b.hotspot.frp || 0) -
-        (a.hotspot.frp || 0)
+        Number(b?.hotspot?.frp || 0) -
+        Number(a?.hotspot?.frp || 0)
       );
     });
   }, [sourceHotspots, hotspots, streamFilter]);
@@ -328,14 +330,21 @@ export function Sidebar({
                         .confidence_score
                     ) || 0;
 
+                  const normSelected = String(selectedId || '').replace(/^vtx-/i, '');
+                  const normId = String(h.id || '').replace(/^vtx-/i, '');
+                  const isSelected = Boolean(selectedId && normSelected === normId);
+                  const frpValue = Number(h.hotspot?.frp ?? 0);
+                  const riskLevel = String(h.classification?.risk_level || 'LOW').toUpperCase();
+
                   return (
                     <div
                       key={
                         h.id || `hotspot-${i}`
                       }
+                      ref={isSelected ? selectedRef : undefined}
                       onClick={() => onSelect?.(h)}
                       className={`px-2.5 py-3 border-b border-[#efbc9d]/30 cursor-pointer transition-all flex items-start gap-3 ${
-                        selectedId === h.id
+                        isSelected
                           ? 'border-l-[3.5px] border-l-[#f5751c] bg-[#193946]/[0.07] shadow-[inset_0_1px_3px_rgba(25,57,70,0.05)]'
                           : 'border-l-[3.5px] border-l-transparent bg-surface hover:bg-[#193946]/[0.03]'
                       }`}
@@ -344,7 +353,7 @@ export function Sidebar({
                       {/* RANK */}
                       <div className="w-6 shrink-0 mt-0.5">
                         <div className={`font-mono text-[12px] font-black text-center ${
-                          selectedId === h.id ? 'text-[#f5751c]' : 'text-[#193946]'
+                          isSelected ? 'text-[#f5751c]' : 'text-[#193946]'
                         }`}>
                           {i + 1}
                         </div>
@@ -372,22 +381,40 @@ export function Sidebar({
                       {/* DETAILS */}
                       <div className="flex-1 overflow-hidden">
 
-                        {/* ID + CONFIDENCE */}
-                        <div className="flex justify-between items-center mb-1">
+                        {/* ID + FRP + RISK + CONFIDENCE */}
+                        <div className="flex justify-between items-center mb-1 gap-2 flex-wrap">
 
                           <span className={`font-mono text-[11px] font-black tracking-wide ${
-                            selectedId === h.id ? 'text-[#f5751c]' : 'text-[#193946]'
+                            isSelected ? 'text-[#f5751c]' : 'text-[#193946]'
                           }`}>
-                            VTX-{h.id}
+                            VTX-{normId}
                           </span>
 
-                          <span className="font-mono text-[10px] font-bold text-[#193946] bg-[#193946]/10 px-1.5 py-0.5 rounded border border-[#193946]/20">
-                            {isPending
-                              ? 'PENDING'
-                              : confidence.toFixed(
-                                  2
-                                )}
-                          </span>
+                          <div className="flex items-center gap-1.5 flex-wrap justify-end">
+                            {frpValue > 0 && (
+                              <span className="font-mono text-[9px] font-bold text-amber-700 bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20">
+                                {frpValue.toFixed(1)} MW
+                              </span>
+                            )}
+                            {!isPending && riskLevel && (
+                              <span className={`font-mono text-[9px] font-black px-1.5 py-0.5 rounded uppercase ${
+                                riskLevel === 'CRITICAL'
+                                  ? 'bg-red-600 text-white shadow-sm'
+                                  : riskLevel === 'HIGH'
+                                  ? 'bg-rose-500/20 text-rose-700 border border-rose-500/30'
+                                  : riskLevel === 'MODERATE'
+                                  ? 'bg-amber-500/15 text-amber-800 border border-amber-500/25'
+                                  : 'bg-emerald-500/10 text-emerald-700 border border-emerald-500/20'
+                              }`}>
+                                {riskLevel}
+                              </span>
+                            )}
+                            <span className="font-mono text-[9px] font-bold text-[#193946] bg-[#193946]/10 px-1.5 py-0.5 rounded border border-[#193946]/20">
+                              {isPending
+                                ? 'PENDING'
+                                : `${(confidence * 100).toFixed(0)}%`}
+                            </span>
+                          </div>
 
                         </div>
 
@@ -406,14 +433,33 @@ export function Sidebar({
                               return 'Analyzing area context...';
                             }
 
-                            if (context.nearest_facility_type) {
-                              const dist =
-                                context.nearest_facility_distance != null
-                                  ? Math.round(context.nearest_facility_distance)
-                                  : null;
-                              return `${context.nearest_facility_type}${
-                                dist != null ? ` (${dist}m)` : ''
-                              }`;
+                            const topFac = context.nearby_facilities?.[0];
+                            const dist =
+                              topFac?.distance_m != null
+                                ? Math.round(Number(topFac.distance_m))
+                                : (context.nearest_facility_distance != null
+                                  ? Math.round(Number(context.nearest_facility_distance))
+                                  : null);
+
+                            if (dist != null && dist <= 1500) {
+                              const facName = topFac?.name && topFac.name !== 'Unknown Facility'
+                                ? topFac.name
+                                : (context.nearest_facility_type || 'Industrial Facility')
+                                    .replace(/_/g, ' ')
+                                    .replace(/\b\w/g, (c: string) => c.toUpperCase());
+                              const distStr = dist >= 1000 ? `${(dist / 1000).toFixed(1)}km` : `${dist}m`;
+                              return `${facName} (${distStr})`;
+                            }
+
+                            if (
+                              classification === ClassificationType.INDUSTRIAL_FIRE ||
+                              classification === ClassificationType.GAS_FLARE
+                            ) {
+                              return 'Industrial corridor / facility';
+                            }
+
+                            if (context.osm_source === 'FAILED') {
+                              return 'Geospatial query offline';
                             }
 
                             return 'No industrial site nearby';

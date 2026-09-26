@@ -79,6 +79,20 @@ def test_failed_osm_uses_recent_live_cache_only():
     assert result.nearby_facilities[0]["name"] == "Previously live"
 
 
+def test_distant_overpass_element_is_not_treated_as_nearby():
+    osm_service._live_osm_cache.clear()
+    distant_facility = {"name": "Far Away Reserve", "type": "industrial", "latitude": 10.3, "longitude": 20.3}
+    with patch("services.osm_service._get_supabase_cached_context", return_value=None), \
+         patch("services.osm_service.query_overpass", new=AsyncMock(return_value=[distant_facility])), \
+         patch("services.osm_service.query_water_context", new=AsyncMock(return_value=[])):
+        with patch("services.osm_service.find_nearby_facilities", return_value=[]):
+            result = asyncio.run(osm_service.enrich_hotspot(hotspot(10, 20)))
+    assert result.osm_source == "LIVE_NO_FACILITY"
+    assert len(result.nearby_facilities) == 0
+    assert result.nearest_facility_distance is None
+    assert result.nearest_facility_type is None
+
+
 def load_tests(loader, tests, pattern):
     """Keep this test runnable with the Python standard library alone."""
     functions = [
@@ -87,5 +101,7 @@ def load_tests(loader, tests, pattern):
         test_failed_osm_uses_offline_catalog,
         test_failed_osm_without_catalog_is_failed,
         test_failed_osm_uses_recent_live_cache_only,
+        test_distant_overpass_element_is_not_treated_as_nearby,
     ]
     return unittest.TestSuite(unittest.FunctionTestCase(function) for function in functions)
+

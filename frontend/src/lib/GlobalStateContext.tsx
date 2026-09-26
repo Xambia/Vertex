@@ -192,11 +192,15 @@ function getObservationKey(
       h.acq_time
     );
 
+  const satellite =
+    String(h.satellite || '').trim().toUpperCase();
+
   return [
-    latitude.toFixed(6),
-    longitude.toFixed(6),
+    latitude.toFixed(5),
+    longitude.toFixed(5),
     date,
     time,
+    satellite,
   ].join('|');
 }
 

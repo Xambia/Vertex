@@ -23,7 +23,7 @@ class Settings(BaseSettings):
     APP_ENV: str = "development"
     CORS_ORIGINS: str = "http://localhost:3000"
     BACKEND_PORT: int = 8000
-    AI_CLASSIFICATION_LIMIT: int = 50
+    AI_CLASSIFICATION_LIMIT: int = 100
     GEMINI_MODEL: str = "gemini-3.5-flash-lite"
 
     # Admin Seeding

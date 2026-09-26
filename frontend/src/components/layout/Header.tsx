@@ -23,11 +23,22 @@ export function Header() {
 
   const criticalHotspots = useMemo(() => {
     if (!hotspots || !Array.isArray(hotspots)) return [];
-    return hotspots.filter((h) => {
-      const risk = String(h.classification?.risk_level ?? '').toUpperCase();
-      const score = Number(h.classification?.risk_score ?? 0);
-      return risk === 'CRITICAL' || score >= 75;
-    });
+    return hotspots
+      .filter((h) => {
+        const risk = String(h.classification?.risk_level ?? '').toUpperCase();
+        const score = Number(h.classification?.risk_score ?? 0);
+        return risk === 'CRITICAL' || risk === 'HIGH' || score >= 55;
+      })
+      .sort((a, b) => {
+        const riskOrder: Record<string, number> = { CRITICAL: 3, HIGH: 2, MODERATE: 1, LOW: 0 };
+        const aRisk = riskOrder[String(a.classification?.risk_level ?? '').toUpperCase()] ?? 0;
+        const bRisk = riskOrder[String(b.classification?.risk_level ?? '').toUpperCase()] ?? 0;
+        if (bRisk !== aRisk) return bRisk - aRisk;
+        const bScore = Number(b.classification?.risk_score ?? 0);
+        const aScore = Number(a.classification?.risk_score ?? 0);
+        if (bScore !== aScore) return bScore - aScore;
+        return Number(b.hotspot?.frp ?? 0) - Number(a.hotspot?.frp ?? 0);
+      });
   }, [hotspots]);
 
   const handleSignOut = () => {
@@ -368,8 +379,8 @@ export function Header() {
                 onClick={() => setShowNotifications((prev) => !prev)}
                 title={
                   criticalNotificationsEnabled
-                    ? `${criticalHotspots.length} Critical Threat(s) Monitored`
-                    : 'Critical Notifications Muted'
+                    ? `${criticalHotspots.length} High & Critical Threat(s) Monitored`
+                    : 'Alert Notifications Muted'
                 }
                 className="
                   h-full

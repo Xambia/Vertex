@@ -84,21 +84,22 @@ export function MapView({
         selectedIdStr && (id === selectedIdStr || id === selectedIdRaw)
       );
 
-      // Vibrant thermal colors: raw FIRMS observations get crisp amber-orange, classified get specific color
-      let color = '#ea580c';
+      // Vibrant thermal colors: raw FIRMS observations get crisp neutral gray, classified get specific color
+      let color = CLASSIFICATION_COLORS[ClassificationType.UNCLASSIFIED] || '#9ca3af';
       if (!isPending) {
         if (type === ClassificationType.AGRICULTURAL_BURN) {
-          color = '#eab308';
+          color = '#ca8a04';
         } else if (CLASSIFICATION_COLORS[type]) {
           color = CLASSIFICATION_COLORS[type];
-        } else if (isHighRisk) {
-          color = '#dc2626';
         }
+      }
+      if (isHighRisk && !isSelected) {
+        color = '#dc2626';
       }
 
       const radius = isSelected ? 8.5 : isHighRisk ? 7.5 : (isPending ? 5.5 : 6);
       const strokeWidth = isSelected ? 3 : (isHighRisk ? 2.5 : 1.8);
-      const strokeColor = isSelected ? '#ffffff' : '#18181b';
+      const strokeColor = isSelected ? '#ffffff' : (isHighRisk ? '#991b1b' : '#18181b');
       const opacity = 1.0;
 
       return {
@@ -312,7 +313,10 @@ export function MapView({
             closeOnClick={false}
             className="vertex-popup"
           >
-            <FirePopup hotspot={selectedHotspot} />
+            <FirePopup
+              hotspot={selectedHotspot}
+              onClose={() => onSelectHotspot?.(null)}
+            />
           </Popup>
         )}
       </Map>

@@ -24,6 +24,8 @@
   {"name": "SAIL Durgapur Steel Plant", "type": "steel_plant", "latitude": 23.55, "longitude": 87.27, "radius_m": 1000},
   {"name": "SAIL Rourkela Steel Plant", "type": "steel_plant", "latitude": 22.21, "longitude": 84.87, "radius_m": 1000},
   {"name": "SAIL IISCO Burnpur", "type": "steel_plant", "latitude": 23.68, "longitude": 86.95, "radius_m": 1000},
+  {"name": "ONGC Uran Gas & LPG Terminal", "type": "chemical_plant", "latitude": 18.858, "longitude": 72.927, "radius_m": 1000},
+  {"name": "MSEB Gas Turbine Power Station Uran", "type": "power_plant", "latitude": 18.860, "longitude": 72.930, "radius_m": 1000},
   {"name": "ONGC Uran Plant", "type": "chemical_plant", "latitude": 18.89, "longitude": 72.95, "radius_m": 1000},
   {"name": "ONGC Hazira Plant", "type": "chemical_plant", "latitude": 21.14, "longitude": 72.63, "radius_m": 1000},
   {"name": "ONGC Ankleshwar Asset", "type": "mining", "latitude": 21.63, "longitude": 72.98, "radius_m": 1000},
@@ -34,5 +36,15 @@
   {"name": "Raniganj Coal Field", "type": "mining", "latitude": 23.61, "longitude": 87.11, "radius_m": 1000},
   {"name": "Singrauli Coal Field", "type": "mining", "latitude": 24.19, "longitude": 82.66, "radius_m": 1000},
   {"name": "Korba Coal Field", "type": "mining", "latitude": 22.35, "longitude": 82.70, "radius_m": 1000},
-  {"name": "Talcher Coal Field", "type": "mining", "latitude": 20.95, "longitude": 85.22, "radius_m": 1000}
+  {"name": "Talcher Coal Field", "type": "mining", "latitude": 20.95, "longitude": 85.22, "radius_m": 1000},
+  {"name": "Tata Steel Kalinganagar Complex", "type": "steel_plant", "latitude": 20.967, "longitude": 86.002, "radius_m": 1500},
+  {"name": "Kandla SEZ & Chemical Terminal", "type": "chemical_plant", "latitude": 23.169, "longitude": 70.219, "radius_m": 1500},
+  {"name": "Welspun City Industrial Complex Anjar", "type": "factory", "latitude": 23.268, "longitude": 70.257, "radius_m": 1500},
+  {"name": "APM Terminals Pipavav Industrial Complex", "type": "chemical_plant", "latitude": 20.909, "longitude": 71.458, "radius_m": 1500},
+  {"name": "MIDC Roha Chemical & Petrochemical Zone", "type": "chemical_plant", "latitude": 18.691, "longitude": 73.042, "radius_m": 1500},
+  {"name": "Debari Zinc Smelter (Hindustan Zinc)", "type": "factory", "latitude": 24.658, "longitude": 73.876, "radius_m": 1500},
+  {"name": "Ghatsila Copper Smelting Complex (HCL)", "type": "factory", "latitude": 22.630, "longitude": 86.179, "radius_m": 1500},
+  {"name": "Ambuja Cements Limited Darlaghat Works", "type": "cement_plant", "latitude": 31.260, "longitude": 76.925, "radius_m": 1500},
+  {"name": "ACC Cement Gagal Works Barmana", "type": "cement_plant", "latitude": 31.320, "longitude": 76.850, "radius_m": 1500},
+  {"name": "UltraTech Cement Baga Works", "type": "cement_plant", "latitude": 31.218, "longitude": 76.953, "radius_m": 1500}
 ]

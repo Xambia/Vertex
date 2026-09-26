@@ -15,7 +15,7 @@ from models.hotspot import FIRMSHotspot
 from models.classification import OSMContext, ClassificationResult, ClassificationEnum
 
 logger = logging.getLogger(__name__)
-
+logging.getLogger("google_genai.models").setLevel(logging.WARNING)
 
 client = genai.Client(api_key=settings.GEMINI_API_KEY)
 
@@ -45,10 +45,12 @@ async def classify_with_gemini(hotspot: FIRMSHotspot, osm_context: OSMContext) -
     - High FRP and very close proximity (<500m) to a refinery/power plant/flare strongly suggests GAS_FLARE.
     - Low FRP, persistent and close proximity to an industrial facility strongly suggests PERSISTENT_INDUSTRIAL_SOURCE.
     - Accidental or structural fires at industrial zones are INDUSTRIAL_FIRE.
-    - Only use AGRICULTURAL_BURN when the hotspot location is plausibly on/adjacent to cultivated land. A mapped river, reservoir, lake, canal, or other water feature within the immediate context is strong negative evidence against labeling the hotspot as an agricultural burn by proximity alone.
-    - If forest/wood nearby, WILDFIRE_FOREST_FIRE.
-    - If near coal field or mining operations, MINING_THERMAL_ACTIVITY.
-    - Note that proximity alone is not proof; consider FRP and time (e.g. night flares).
+    - Geospatial terrain intelligence: OpenStreetMap coverage in rural/industrial India is frequently unmapped or offline. NEVER classify as UNKNOWN_UNCERTAIN merely because OSM context is 'None identified' or 'FAILED'. You possess expert knowledge of Indian geography: evaluate the exact Latitude and Longitude coordinates against India's industrial hubs, ports, refineries, mining belts, agrarian plains, and forest biomes.
+    - Nighttime thermal detections (Day/Night: N): Agricultural stubble burning does not occur at night. Nighttime thermal anomalies with low-to-moderate FRP (1-5 MW) located in industrial zones, ports, chemical corridors, steel belts, or manufacturing nodes (e.g. Kalinganagar, Gandhidham/Kandla, Anjar, Roha/Pen, Jamshedpur, Udaipur/Debari, Hazira) should be classified as PERSISTENT_INDUSTRIAL_SOURCE, GAS_FLARE, or INDUSTRIAL_FIRE.
+    - If near coal fields, opencast pits, or mineral belts, classify as MINING_THERMAL_ACTIVITY.
+    - If located in dense forests, national reserves, or mountainous tracts (e.g. Western Ghats, Northeast India, Central Indian hills), classify as WILDFIRE_FOREST_FIRE.
+    - Daytime thermal detections (Day/Night: D): In rural cultivated plains with low-to-moderate FRP, classify as AGRICULTURAL_BURN.
+    - Reserve UNKNOWN_UNCERTAIN strictly for anomalous coordinates with completely conflicting physical signatures.
     
     Return a JSON response with exactly this structure:
     {{
@@ -74,8 +76,21 @@ async def classify_with_gemini(hotspot: FIRMSHotspot, osm_context: OSMContext) -
         
         data = json.loads(response.text)
         
+        raw_cls = data.get("classification", "UNKNOWN_UNCERTAIN")
+        # Strict domain rule: Agricultural stubble burning does not occur at night in India
+        if hotspot.daynight == "N" and raw_cls == "AGRICULTURAL_BURN":
+            if (osm_context.nearby_facilities and len(osm_context.nearby_facilities) > 0) or (hotspot.frp and hotspot.frp < 5.0):
+                raw_cls = "PERSISTENT_INDUSTRIAL_SOURCE"
+            else:
+                raw_cls = "OTHER_THERMAL_ANOMALY"
+
+        try:
+            parsed_enum = ClassificationEnum(raw_cls)
+        except ValueError:
+            parsed_enum = ClassificationEnum.OTHER_THERMAL_ANOMALY
+
         return ClassificationResult(
-            classification=ClassificationEnum(data.get("classification", "UNKNOWN_UNCERTAIN")),
+            classification=parsed_enum,
             confidence_score=float(data.get("confidence_score", 0.5)),
             explanation=str(data.get("explanation", "Could not fully parse reasoning.")),
             evidence=data.get("evidence", []),

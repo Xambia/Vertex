@@ -27,15 +27,19 @@ def _get_all_facilities() -> List[Dict[str, Any]]:
     if _cached_facilities:
         return _cached_facilities
         
+    combined: Dict[str, Dict[str, Any]] = {}
+    for f in _load_fallback_facilities():
+        combined[f['name'].lower()] = f
+
     try:
         res = supabase_service.table('industrial_facilities').select('*').execute()
-        if res and res.data and len(res.data) > 0:
-            _cached_facilities = res.data
-            return _cached_facilities
+        if res and res.data:
+            for r in res.data:
+                combined[r['name'].lower()] = r
     except Exception as e:
         logger.error(f'Error fetching facilities from Supabase: {e}')
     
-    _cached_facilities = _load_fallback_facilities()
+    _cached_facilities = list(combined.values())
     return _cached_facilities
 
 def haversine_distance(lat1: float, lon1: float, lat2: float, lon2: float) -> float:

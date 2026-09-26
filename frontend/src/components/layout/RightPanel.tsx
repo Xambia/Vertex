@@ -7,6 +7,7 @@ import {
   ClassificationType,
 } from '@/types';
 import { ReactNode, useEffect, useState } from 'react';
+import { useGlobalState } from '@/lib/GlobalStateContext';
 import { EvidenceStackModal } from './EvidenceStackModal';
 import { FacilityGraphModal } from './FacilityGraphModal';
 
@@ -113,22 +114,24 @@ function normalizeContext(context: any) {
   }
 
   const rawFacilities = context.nearby_facilities ?? [];
-  const clampedFacilities = rawFacilities.map((f: any) => {
+  const validFacilities = rawFacilities.filter((f: any) => {
     const d = Number(f.distance_m ?? f.distance_meters ?? 0);
-    const clamped = Math.min(d, 1000);
-    return { ...f, distance_m: clamped, distance_meters: clamped };
+    return d <= 1500;
   });
 
-  const rawNearestDist = context.nearest_facility_distance;
-  const clampedNearestDist = rawNearestDist != null ? Math.min(Number(rawNearestDist), 1000) : null;
+  const rawNearestDist =
+    context.nearest_facility_distance != null
+      ? Number(context.nearest_facility_distance)
+      : null;
+  const isNearby = rawNearestDist != null && rawNearestDist <= 1500;
 
   return {
-    nearby_facilities: clampedFacilities,
-    nearest_facility_distance: clampedNearestDist,
-    nearest_facility_type:
-      context.nearest_facility_type ?? null,
-    facility_count_in_radius:
-      context.facility_count_in_radius ?? 0,
+    nearby_facilities: validFacilities,
+    nearest_facility_distance: isNearby ? rawNearestDist : null,
+    nearest_facility_type: isNearby
+      ? (context.nearest_facility_type ?? null)
+      : null,
+    facility_count_in_radius: validFacilities.length,
     land_use_context:
       context.land_use_context ?? [],
     osm_source:
@@ -255,6 +258,8 @@ function TimelineRow({ status, title, detail }: { status: string; title: string;
 }
 
 export function RightPanel({ hotspot }: RightPanelProps) {
+  const { refreshData, setSelectedHotspot } = useGlobalState();
+
   const [activeTab, setActiveTab] = useState<
     'DOSSIER' | 'METRICS' | 'INSPECTOR' | 'LOGS'
   >('DOSSIER');
@@ -299,6 +304,7 @@ export function RightPanel({ hotspot }: RightPanelProps) {
       }
 
       const firms = hotspot.hotspot;
+      setSatelliteEvidence(null);
       setSatelliteLoading(true);
       setSatelliteError(null);
 
@@ -361,9 +367,23 @@ export function RightPanel({ hotspot }: RightPanelProps) {
         setDisplayContext(normalized);
       }
 
-      if ((result as any)?.classification) {
-        setOverrideClassification((result as any).classification);
+      const newClf = (result as any)?.classification;
+      if (newClf) {
+        setOverrideClassification(newClf);
       }
+
+      if (hotspot) {
+        setSelectedHotspot({
+          ...hotspot,
+          context: refreshedContext && typeof refreshedContext === 'object' && !Array.isArray(refreshedContext) ? refreshedContext : hotspot.context,
+          classification: newClf
+            ? (typeof newClf === 'string' ? { ...(hotspot.classification || {}), classification: newClf } : { ...(hotspot.classification || {}), ...newClf })
+            : hotspot.classification,
+        } as any);
+      }
+
+      // Re-fetch globally so Sidebar, MapView, and FirePopup stay synchronized
+      refreshData().catch(() => {});
     } catch (error) {
       console.error(
         'Context refresh failed:',
@@ -679,9 +699,12 @@ export function RightPanel({ hotspot }: RightPanelProps) {
                       </div>
                     ) : (
                       <div className="text-secondary italic">
-                        {contextMessage(
-                          context.osm_source
-                        )}
+                        {classification.classification === ClassificationType.INDUSTRIAL_FIRE ||
+                        classification.classification === ClassificationType.GAS_FLARE
+                          ? 'Satellite telemetry and AI terrain model indicate active industrial plant boundary.'
+                          : contextMessage(
+                              context.osm_source
+                            )}
                       </div>
                     )}
 
@@ -1250,7 +1273,7 @@ export function RightPanel({ hotspot }: RightPanelProps) {
 
       {showFacility && (
         <FacilityGraphModal
-          hotspot={hotspot}
+          hotspot={{ ...hotspot, context: displayContext }}
           onClose={() =>
             setShowFacility(false)
           }

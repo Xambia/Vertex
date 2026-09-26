@@ -514,16 +514,38 @@ function AnalyticsWorkspace() {
             OPERATIONAL SUMMARY
             ================================================= */}
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
 
           <div className="border border-[#193946]/30 bg-[#193946]/5 p-4 shadow-sm">
             <div className="font-mono text-[10px] tracking-widest text-[#193946] font-bold uppercase flex items-center gap-1.5 mb-2">
               <span className="w-1.5 h-1.5 rounded-full bg-[#193946]" />
-              INDUSTRIAL / PERSISTENT EVENTS
+              INDUSTRIAL / PERSISTENT
             </div>
 
             <div className="font-mono text-2xl font-black text-[#193946]">
               {industrialEvents}
+            </div>
+          </div>
+
+          <div className="border border-[#ca8a04]/40 bg-[#ca8a04]/5 p-4 shadow-sm">
+            <div className="font-mono text-[10px] tracking-widest text-[#ca8a04] font-bold uppercase flex items-center gap-1.5 mb-2">
+              <span className="w-1.5 h-1.5 rounded-full bg-[#ca8a04]" />
+              AGRICULTURAL BURNS
+            </div>
+
+            <div className="font-mono text-2xl font-black text-[#ca8a04]">
+              {classificationCounts['AGRICULTURAL_BURN'] || 0}
+            </div>
+          </div>
+
+          <div className="border border-[#16a34a]/40 bg-[#16a34a]/5 p-4 shadow-sm">
+            <div className="font-mono text-[10px] tracking-widest text-[#16a34a] font-bold uppercase flex items-center gap-1.5 mb-2">
+              <span className="w-1.5 h-1.5 rounded-full bg-[#16a34a]" />
+              WILDFIRE / FOREST
+            </div>
+
+            <div className="font-mono text-2xl font-black text-[#16a34a]">
+              {classificationCounts['WILDFIRE_FOREST_FIRE'] || 0}
             </div>
           </div>
 

@@ -54,20 +54,31 @@ export function NotificationsPopover({
     }
   }, [isOpen, onClose]);
 
-  // Extract all critical risk hotspots dynamically
-  const criticalHotspots = useMemo(() => {
+  // Extract all high and critical risk hotspots dynamically
+  const alertHotspots = useMemo(() => {
     if (!hotspots || !Array.isArray(hotspots)) return [];
-    return hotspots.filter((h) => {
-      const risk = String(h.classification?.risk_level ?? '').toUpperCase();
-      const score = Number(h.classification?.risk_score ?? 0);
-      return risk === 'CRITICAL' || score >= 75;
-    });
+    return hotspots
+      .filter((h) => {
+        const risk = String(h.classification?.risk_level ?? '').toUpperCase();
+        const score = Number(h.classification?.risk_score ?? 0);
+        return risk === 'CRITICAL' || risk === 'HIGH' || score >= 55;
+      })
+      .sort((a, b) => {
+        const riskOrder: Record<string, number> = { CRITICAL: 3, HIGH: 2, MODERATE: 1, LOW: 0 };
+        const aRisk = riskOrder[String(a.classification?.risk_level ?? '').toUpperCase()] ?? 0;
+        const bRisk = riskOrder[String(b.classification?.risk_level ?? '').toUpperCase()] ?? 0;
+        if (bRisk !== aRisk) return bRisk - aRisk;
+        const bScore = Number(b.classification?.risk_score ?? 0);
+        const aScore = Number(a.classification?.risk_score ?? 0);
+        if (bScore !== aScore) return bScore - aScore;
+        return Number(b.hotspot?.frp ?? 0) - Number(a.hotspot?.frp ?? 0);
+      });
   }, [hotspots]);
 
   // Filter out any dismissed for this session
   const activeAlerts = useMemo(() => {
-    return criticalHotspots.filter((h) => !dismissedIds.has(String(h.id)));
-  }, [criticalHotspots, dismissedIds]);
+    return alertHotspots.filter((h) => !dismissedIds.has(String(h.id)));
+  }, [alertHotspots, dismissedIds]);
 
   const handleLocate = (hotspot: ClassifiedHotspot) => {
     setSelectedHotspot(hotspot);
@@ -83,7 +94,7 @@ export function NotificationsPopover({
   };
 
   const handleDismissAll = () => {
-    const allIds = criticalHotspots.map((h) => String(h.id));
+    const allIds = alertHotspots.map((h) => String(h.id));
     setDismissedIds(new Set(allIds));
   };
 
@@ -120,7 +131,7 @@ export function NotificationsPopover({
             <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-600"></span>
           </span>
           <h3 className="font-headline-sm text-on-surface uppercase tracking-wider text-[12px] font-bold">
-            Critical Alerts Stream
+            Critical & High Alerts
           </h3>
           <span className="border border-red-500/40 bg-red-500/10 text-red-600 dark:text-red-400 font-mono text-[9px] font-bold px-1.5 py-0.5 rounded">
             {activeAlerts.length} ACTIVE
@@ -172,7 +183,7 @@ export function NotificationsPopover({
               </span>
             </div>
             <div className="font-headline-sm text-on-surface text-[12px] font-bold mb-1">
-              NO CRITICAL THREATS
+              NO HIGH OR CRITICAL THREATS
             </div>
             <p className="text-[11px] text-secondary max-w-[240px] leading-relaxed">
               All monitored thermal hotspots are currently operating within nominal parameters.
@@ -188,6 +199,8 @@ export function NotificationsPopover({
             const rawCls = h.classification?.classification ?? 'UNKNOWN';
             const label = CLASSIFICATION_LABELS[rawCls as keyof typeof CLASSIFICATION_LABELS] || rawCls;
             const score = Number(h.classification?.risk_score ?? 0);
+            const riskLevel = String(h.classification?.risk_level ?? '').toUpperCase();
+            const isCritical = riskLevel === 'CRITICAL' || score >= 75;
             const facilityName = (h.classification?.source_data as any)?.facility_name;
 
             return (
@@ -202,8 +215,10 @@ export function NotificationsPopover({
                     <span className="font-mono text-[11px] font-bold text-primary">
                       VTX-{hid}
                     </span>
-                    <span className="bg-red-600 text-white text-[8px] font-mono font-bold px-1.5 py-0.2 rounded uppercase">
-                      CRITICAL RISK
+                    <span className={`text-white text-[8px] font-mono font-bold px-1.5 py-0.5 rounded uppercase ${
+                      isCritical ? 'bg-red-600' : 'bg-orange-600'
+                    }`}>
+                      {isCritical ? 'CRITICAL RISK' : 'HIGH RISK'}
                     </span>
                     {score > 0 && (
                       <span className="text-[10px] font-mono text-secondary">
@@ -223,7 +238,9 @@ export function NotificationsPopover({
 
                 {/* Classification Title */}
                 <div className="font-headline-sm text-[13px] font-bold text-on-surface mb-1 flex items-center gap-1.5">
-                  <span className="material-symbols-outlined text-[16px] text-red-500">
+                  <span className={`material-symbols-outlined text-[16px] ${
+                    isCritical ? 'text-red-500' : 'text-orange-500'
+                  }`}>
                     local_fire_department
                   </span>
                   <span>{label}</span>

@@ -20,33 +20,51 @@ def haversine(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     return 2 * R * math.atan2(math.sqrt(a), math.sqrt(1-a))
 
 def cluster_hotspots(hotspots: List[Dict[str, Any]]) -> List[List[Dict[str, Any]]]:
-    """Cluster nearby observations using a spatial grid to avoid O(N²) global scans."""
-    cell_deg = MAX_DISTANCE / 111_320.0
-    buckets: Dict[tuple[int, int], List[tuple[int, Dict[str, Any]]]] = {}
-    clusters: List[List[Dict[str, Any]]] = []
+    """Cluster nearby observations using a spatial grid and Disjoint-Set Union (Union-Find)."""
+    if not hotspots:
+        return []
 
-    for h in hotspots:
+    parent = list(range(len(hotspots)))
+
+    def find(i: int) -> int:
+        path = []
+        while parent[i] != i:
+            path.append(i)
+            i = parent[i]
+        for node in path:
+            parent[node] = i
+        return i
+
+    def union(i: int, j: int) -> None:
+        root_i = find(i)
+        root_j = find(j)
+        if root_i != root_j:
+            parent[root_i] = root_j
+
+    cell_deg = MAX_DISTANCE / 111_320.0
+    buckets: Dict[tuple[int, int], List[int]] = {}
+
+    for i, h in enumerate(hotspots):
         lat = float(h['latitude'])
         lon = float(h['longitude'])
         key = (int(lat / cell_deg), int(lon / cell_deg))
-        matched: set[int] = set()
+
         for dlat in (-1, 0, 1):
             for dlon in (-1, 0, 1):
-                for ci, pt in buckets.get((key[0] + dlat, key[1] + dlon), []):
-                    if haversine(lat, lon, pt['latitude'], pt['longitude']) <= MAX_DISTANCE:
-                        matched.add(ci)
-        if not matched:
-            ci = len(clusters)
-            clusters.append([h])
-        else:
-            ci = min(matched)
-            clusters[ci].append(h)
-            for other in sorted(matched - {ci}, reverse=True):
-                clusters[ci].extend(clusters[other])
-                clusters[other] = []
-        buckets.setdefault(key, []).append((ci, h))
+                neighbor_key = (key[0] + dlat, key[1] + dlon)
+                for other_idx in buckets.get(neighbor_key, []):
+                    other_h = hotspots[other_idx]
+                    if haversine(lat, lon, float(other_h['latitude']), float(other_h['longitude'])) <= MAX_DISTANCE:
+                        union(i, other_idx)
 
-    return [c for c in clusters if c]
+        buckets.setdefault(key, []).append(i)
+
+    groups: Dict[int, List[Dict[str, Any]]] = {}
+    for i, h in enumerate(hotspots):
+        root = find(i)
+        groups.setdefault(root, []).append(h)
+
+    return list(groups.values())
 
 async def calculate_persistent_sources() -> List[Dict[str, Any]]:
     """

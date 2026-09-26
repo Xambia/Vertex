@@ -61,7 +61,7 @@ export interface OSMFacility {
   distance_meters?: number;
 }
 
-export type OSMSource = 'LIVE' | 'LIVE_NO_FACILITY' | 'CACHED' | 'CACHED_NO_FACILITY' | 'OFFLINE_CATALOG' | 'FAILED' | 'PENDING' | 'QUERY_FAILED' | 'SERVICE_UNAVAILABLE' | 'NOT_QUERIED';
+export type OSMSource = 'LIVE' | 'LIVE_NO_FACILITY' | 'CACHED' | 'CACHED_NO_FACILITY' | 'OFFLINE_CATALOG' | 'FAILED' | 'PENDING' | 'QUERY_FAILED' | 'SERVICE_UNAVAILABLE' | 'NOT_QUERIED' | 'GEMINI_AI_IDENTIFIED' | 'GEMINI_VERIFIED_NO_FACILITY' | 'LIVE_GEMINI_ENRICHED';
 
 export interface OSMContext {
   nearby_facilities: OSMFacility[];

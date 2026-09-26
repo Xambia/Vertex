@@ -134,8 +134,8 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
             <div className="space-y-3">
               <label className="flex items-center justify-between bg-surface-container p-3 border border-outline-variant cursor-pointer group">
                 <div>
-                  <span className="text-[12px] text-on-surface block font-medium">Critical Threat Notifications</span>
-                  <span className="text-[10px] text-secondary">Show pulsing badge & notification stream for Critical events</span>
+                  <span className="text-[12px] text-on-surface block font-medium">High & Critical Threat Notifications</span>
+                  <span className="text-[10px] text-secondary">Show pulsing badge & notification stream for High & Critical events</span>
                 </div>
                 <input 
                   type="checkbox" 

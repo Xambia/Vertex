@@ -13,6 +13,9 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
+from fastapi.middleware.gzip import GZipMiddleware
+from fastapi import Response
+
 app = FastAPI(
     title="VERTEX API",
     description="AI-based industrial fire detection platform for SIH 26162",
@@ -22,6 +25,8 @@ app = FastAPI(
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
+app.add_middleware(GZipMiddleware, minimum_size=1000)
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins_list,
@@ -29,6 +34,10 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+@app.get("/health", tags=["Health"])
+async def root_health_check(response: Response):
+    return await health.health_check(response)
 
 app.include_router(health.router, prefix="/api/v1")
 app.include_router(firms.router, prefix="/api/v1")

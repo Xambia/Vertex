@@ -37,6 +37,9 @@ async def get_classified_hotspots(
         if max_frp is not None:
             query = query.lte("frp", max_frp)
             
+        if limit is not None and limit > 0:
+            query = query.limit(limit)
+
         # Execute query
         res = query.execute()
         records = res.data or []
@@ -163,7 +166,7 @@ async def reclassify_current(request: Request, admin_user: Any = Depends(verify_
             if not db_id:
                 continue
             payload = {
-                "classification": item.classification.classification.value,
+                "classification": item.classification.classification.value if hasattr(item.classification.classification, "value") else str(item.classification.classification),
                 "confidence_score": item.classification.confidence_score,
                 "explanation": item.classification.explanation,
                 "evidence": item.classification.evidence,

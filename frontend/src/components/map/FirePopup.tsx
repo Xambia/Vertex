@@ -7,12 +7,14 @@ import {
 
 export function FirePopup({
   hotspot,
+  onClose,
 }: {
   hotspot: ClassifiedHotspot;
+  onClose?: () => void;
 }) {
-  const c = hotspot.classification;
-  const f = hotspot.hotspot;
-  const ctx = hotspot.context;
+  const c = hotspot.classification || ({} as any);
+  const f = hotspot.hotspot || ({} as any);
+  const ctx = hotspot.context || ({} as any);
 
   const type =
     c.classification as ClassificationType;
@@ -24,6 +26,8 @@ export function FirePopup({
   const label =
     CLASSIFICATION_LABELS[type] ||
     'Unknown / Uncertain';
+
+  const confPercent = Number(c.confidence_score ?? 0) * 100;
 
   return (
     <div className="w-[340px] bg-surface-container-low border border-outline-variant rounded-none overflow-hidden flex flex-col font-body-md shadow-2xl">
@@ -40,12 +44,20 @@ export function FirePopup({
             </span>
 
             <span className="font-mono-data-sm text-[10px] bg-surface-container-highest text-on-surface px-2 py-0.5 rounded-none border border-outline-variant">
-              {(c.confidence_score * 100).toFixed(
-                1
-              )}
-              % Confidence
+              {isNaN(confPercent) ? '0.0' : confPercent.toFixed(1)}% Confidence
             </span>
           </div>
+
+          {onClose && (
+            <button
+              type="button"
+              onClick={onClose}
+              className="text-secondary hover:text-on-surface p-0.5 -mr-1 transition-colors flex items-center justify-center"
+              title="Close Popup"
+            >
+              <span className="material-symbols-outlined text-[16px]">close</span>
+            </button>
+          )}
         </div>
 
         <div className="flex items-center space-x-2 mt-2">
@@ -97,7 +109,7 @@ export function FirePopup({
               </span>
 
               <span className="font-mono-data-md text-primary">
-                {f.frp.toFixed(1)} MW
+                {Number(f.frp ?? 0).toFixed(1)} MW
               </span>
             </div>
 
@@ -107,11 +119,11 @@ export function FirePopup({
               </span>
 
               <span className="font-mono-data-md text-primary">
-                {(f.brightness && f.brightness > 0) ? f.brightness.toFixed(1) : 'N/A'} K
+                {(f.brightness && Number(f.brightness) > 0) ? Number(f.brightness).toFixed(1) : 'N/A'} K
               </span>
             </div>
 
-            <div className="bg-surface-container p-2 rounded-none col-span-2 flex justify-between border border-outline-variant">
+            <div className="bg-surface-container p-2 rounded-none col-span-2 flex justify-between items-center border border-outline-variant">
               <div>
                 <span className="text-secondary text-[10px] font-mono block uppercase">
                   Acquisition
@@ -122,14 +134,21 @@ export function FirePopup({
                 </span>
               </div>
 
-              <div className="text-right">
-                <span className="text-secondary text-[10px] font-mono block uppercase">
-                  Satellite
+              <div className="flex items-center gap-2">
+                <span className={`font-mono text-[9px] font-bold px-1.5 py-0.5 rounded uppercase ${
+                  f.daynight === 'D' ? 'bg-amber-500/20 text-amber-700 border border-amber-500/30' : 'bg-indigo-500/20 text-indigo-700 border border-indigo-500/30'
+                }`}>
+                  {f.daynight === 'D' ? 'DAY' : 'NIGHT'}
                 </span>
+                <div className="text-right">
+                  <span className="text-secondary text-[10px] font-mono block uppercase">
+                    Satellite
+                  </span>
 
-                <span className="font-mono-data-sm text-on-surface">
-                  {f.satellite}
-                </span>
+                  <span className="font-mono-data-sm text-on-surface">
+                    {f.satellite}
+                  </span>
+                </div>
               </div>
             </div>
           </div>

@@ -88,30 +88,32 @@ async def _enrich_one_hotspot(hotspot_id: str, use_gemini: bool = False):
         logger.warning(f"Stored hotspot lookup failed for {hotspot_id}: {e}")
     if hotspot_data:
         hotspot = FIRMSHotspot(**hotspot_data)
+        setattr(hotspot, "_db_id", hotspot_data["id"])
     else:
         hotspot = _synthetic_to_hotspot(hotspot_id)
         if hotspot is None:
             raise HTTPException(status_code=404, detail="Hotspot not found")
 
-    if not use_gemini:
-        osm_context = await asyncio.wait_for(enrich_hotspot(hotspot), timeout=120.0)
-    else:
+    try:
+        osm_context = await asyncio.wait_for(enrich_hotspot(hotspot), timeout=15.0)
+    except Exception as e:
+        logger.warning(f"enrich_hotspot error for {hotspot_id}: {e}")
         from models.classification import OSMContext
-        offline_facs = find_nearby_facilities(hotspot.latitude, hotspot.longitude, 1000)
+        offline_facs = find_nearby_facilities(hotspot.latitude, hotspot.longitude, 1500)
         osm_context = OSMContext(
             nearby_facilities=offline_facs,
             nearest_facility_distance=offline_facs[0]["distance_m"] if offline_facs else None,
             nearest_facility_type=offline_facs[0]["type"] if offline_facs else None,
             facility_count_in_radius=len(offline_facs),
             land_use_context=[],
-            osm_source="PENDING"
+            osm_source="OFFLINE_CATALOG" if offline_facs else "FAILED"
         )
 
-    # If force query requested, use Gemini to identify facilities and reclassify
+    # If force query requested AND no facility was identified yet, consult Gemini
     gemini_context = None
     classification_payload = None
 
-    if use_gemini:
+    if use_gemini and not osm_context.nearby_facilities:
         gemini_context = await _gemini_identify_facilities(hotspot.latitude, hotspot.longitude)
 
     osm_data = {
@@ -120,20 +122,36 @@ async def _enrich_one_hotspot(hotspot_id: str, use_gemini: bool = False):
         "nearest_facility_type": osm_context.nearest_facility_type,
         "facility_count_in_radius": osm_context.facility_count_in_radius,
         "land_use_context": osm_context.land_use_context,
+        "water_context": getattr(osm_context, "water_context", []),
+        "near_water": getattr(osm_context, "near_water", False),
         "osm_source": osm_context.osm_source,
     }
 
     # Merge Gemini-identified facilities and land use into the context
     if gemini_context:
+        # Sanitize existing nearby facilities to ensure none exceed 1500m
+        osm_data["nearby_facilities"] = [
+            f for f in (osm_data.get("nearby_facilities") or [])
+            if f.get("distance_m") is not None and float(f["distance_m"]) <= 1500
+        ]
+        if not osm_data["nearby_facilities"]:
+            osm_data["nearest_facility_distance"] = None
+            osm_data["nearest_facility_type"] = None
+            osm_data["facility_count_in_radius"] = 0
+
         raw_facs = gemini_context.get("facilities", [])
         gemini_facilities = []
         for f in raw_facs:
             dist_val = f.get("estimated_distance_m") or (float(f.get("distance_km", 1.0)) * 1000)
-            gemini_facilities.append({
-                "name": f.get("name") or f.get("facility_name") or "AI-identified Facility",
-                "type": f.get("type") or f.get("facility_type") or "industrial",
-                "distance_m": round(float(dist_val), 2),
-            })
+            d = round(float(dist_val), 2)
+            if d <= 1500:
+                gemini_facilities.append({
+                    "name": f.get("name") or f.get("facility_name") or "AI-identified Facility",
+                    "type": f.get("type") or f.get("facility_type") or "industrial",
+                    "distance_m": d,
+                })
+
+        gemini_facilities.sort(key=lambda x: x["distance_m"])
 
         if gemini_facilities and not osm_data["nearby_facilities"]:
             osm_data["nearby_facilities"] = gemini_facilities[:5]
@@ -159,6 +177,7 @@ async def _enrich_one_hotspot(hotspot_id: str, use_gemini: bool = False):
             from services.gemini_service import classify_with_gemini
             from services.classifier import calculate_risk_score
             from models.classification import OSMContext
+            from config import settings
 
             updated_context = OSMContext(
                 nearby_facilities=osm_data["nearby_facilities"],
@@ -191,7 +210,7 @@ async def _enrich_one_hotspot(hotspot_id: str, use_gemini: bool = False):
                     "risk_level": risk_level,
                     "source_data": {
                         "method": "gemini_force_enrich",
-                        "model": "gemini-3.5-flash-lite",
+                        "model": settings.GEMINI_MODEL,
                         "facility_name": osm_data["nearby_facilities"][0]["name"] if osm_data["nearby_facilities"] else None,
                         "facility_type": osm_data["nearest_facility_type"],
                         "distance_m": osm_data["nearest_facility_distance"],
@@ -241,6 +260,27 @@ async def get_industrial(lat: float = Query(...), lon: float = Query(...), radiu
 async def check_osm_health():
     return {"mirrors": [{"mirror": "overpass", "status": "AVAILABLE"}]}
 
+@router.post("/enrich/top50")
+async def enrich_top50(request: EnrichTop50Request = EnrichTop50Request()):
+    if request.hotspot_ids is not None:
+        ids = [str(v) for v in request.hotspot_ids][:50]
+    else:
+        res = supabase_service.table("hotspots").select("id,frp").order("frp", desc=True).limit(50).execute()
+        ids = [str(r.get("id")) for r in (res.data or []) if r.get("id") is not None]
+
+    sem = asyncio.Semaphore(5)
+
+    async def _process_id(hotspot_id: str):
+        async with sem:
+            try:
+                osm_context, osm_data, _ = await _enrich_one_hotspot(hotspot_id)
+                return {"hotspot_id": hotspot_id, "status": "ok", "context": osm_data}
+            except Exception as e:
+                return {"hotspot_id": hotspot_id, "status": "error", "error": str(e)}
+
+    results = await asyncio.gather(*[_process_id(hid) for hid in ids])
+    return {"processed": len(results), "results": list(results)}
+
 @router.post("/enrich/{hotspot_id}")
 async def manual_enrich_hotspot(hotspot_id: str, force: bool = Query(False)):
     try:
@@ -256,20 +296,4 @@ async def manual_enrich_hotspot(hotspot_id: str, force: bool = Query(False)):
     except Exception as e:
         logger.exception("OSM enrichment failed")
         raise HTTPException(status_code=500, detail=str(e))
-
-@router.post("/enrich/top50")
-async def enrich_top50(request: EnrichTop50Request = EnrichTop50Request()):
-    if request.hotspot_ids is not None:
-        ids = [str(v) for v in request.hotspot_ids][:50]
-    else:
-        res = supabase_service.table("hotspots").select("id,frp").order("frp", desc=True).limit(50).execute()
-        ids = [str(r.get("id")) for r in (res.data or []) if r.get("id") is not None]
-    results = []
-    for hotspot_id in ids:
-        try:
-            osm_context, osm_data, _ = await _enrich_one_hotspot(hotspot_id)
-            results.append({"hotspot_id": hotspot_id, "status": "ok", "context": osm_data})
-        except Exception as e:
-            results.append({"hotspot_id": hotspot_id, "status": "error", "error": str(e)})
-    return {"processed": len(results), "results": results}
 

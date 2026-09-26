@@ -11,9 +11,9 @@ from services import classifier
 
 def make_hotspot(index: int) -> FIRMSHotspot:
     hotspot = FIRMSHotspot(
-        latitude=18.0 + (index / 1000),
-        longitude=73.0 + (index / 1000),
-        frp=10.0 + index,
+        latitude=19.5 + (index / 1000),
+        longitude=75.5 + (index / 1000),
+        frp=12.0,
         confidence="h",
     )
     setattr(hotspot, "_db_id", index + 1)
@@ -114,5 +114,68 @@ class ClassifierResilienceTests(unittest.TestCase):
         self.assertIn(("eq", "classifications", "id", 101), supabase.calls)
 
 
+    def test_remote_low_frp_hotspot_invokes_gemini_instead_of_blind_agri_burn(self):
+        hotspot = FIRMSHotspot(
+            latitude=27.8190,
+            longitude=96.1839,
+            frp=2.3,
+            daynight="D",
+            confidence="n"
+        )
+        context = OSMContext(
+            osm_source="LIVE_NO_FACILITY",
+            land_use_context=[],
+            nearby_facilities=[]
+        )
+        mock_gemini_response = ClassificationResult(
+            classification=ClassificationEnum.WILDFIRE_FOREST_FIRE,
+            confidence_score=0.88,
+            explanation="Arunachal Pradesh forest terrain identified by AI",
+            evidence=["Terrain: Forest"],
+            source_data={"model": "gemini-3.5-flash-lite"}
+        )
+
+        with patch("services.classifier.classify_with_gemini", new=AsyncMock(return_value=mock_gemini_response)) as mock_gemini:
+            result = asyncio.run(classifier.classify_hotspot_with_context(hotspot, context))
+
+        self.assertEqual(ClassificationEnum.WILDFIRE_FOREST_FIRE, result.classification.classification)
+        self.assertEqual(1, mock_gemini.await_count)
+
+    def test_forest_tag_directly_classified_as_wildfire(self):
+        hotspot = FIRMSHotspot(
+            latitude=27.8190,
+            longitude=96.1839,
+            frp=2.3,
+            daynight="D",
+            confidence="n"
+        )
+        context = OSMContext(
+            osm_source="LIVE",
+            land_use_context=["FOREST_WOOD"],
+            nearby_facilities=[]
+        )
+
+        result = asyncio.run(classifier.classify_hotspot_with_context(hotspot, context))
+        self.assertEqual(ClassificationEnum.WILDFIRE_FOREST_FIRE, result.classification.classification)
+
+    def test_farmland_tag_classified_as_agri_burn(self):
+        hotspot = FIRMSHotspot(
+            latitude=30.0,
+            longitude=76.0,
+            frp=5.0,
+            daynight="D",
+            confidence="n"
+        )
+        context = OSMContext(
+            osm_source="LIVE",
+            land_use_context=["FARMLAND"],
+            nearby_facilities=[]
+        )
+
+        result = asyncio.run(classifier.classify_hotspot_with_context(hotspot, context))
+        self.assertEqual(ClassificationEnum.AGRICULTURAL_BURN, result.classification.classification)
+
+
 if __name__ == "__main__":
     unittest.main()
+

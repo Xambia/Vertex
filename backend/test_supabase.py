@@ -2,6 +2,14 @@ import os
 import sys
 import traceback
 
+try:
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8")
+    if hasattr(sys.stderr, "reconfigure"):
+        sys.stderr.reconfigure(encoding="utf-8")
+except Exception:
+    pass
+
 # Add current dir to path to allow imports
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 

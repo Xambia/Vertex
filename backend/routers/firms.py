@@ -28,7 +28,7 @@ async def get_realtime(
     request: Request,
     country: str = Query("IND", description="Country Code"),
     days: int = Query(1, description="Number of days"),
-    source: str = Query("VIIRS_SNPP_NRT", description="FIRMS Source")
+    source: str = Query("ALL", description="FIRMS Source")
 ):
     hotspots = await fetch_realtime_hotspots(country, days, source)
     return to_geojson(hotspots)
@@ -39,7 +39,7 @@ async def get_area(
     request: Request,
     bbox: str = Query(..., description="Bounding box (W,S,E,N)"),
     days: int = Query(1, description="Number of days"),
-    source: str = Query("VIIRS_SNPP_NRT", description="FIRMS Source")
+    source: str = Query("ALL", description="FIRMS Source")
 ):
     hotspots = await fetch_area_hotspots(bbox, days, source)
     return to_geojson(hotspots)
