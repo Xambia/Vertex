@@ -1,3 +1,4 @@
+import asyncio
 from fastapi import APIRouter, Query, BackgroundTasks, HTTPException, Request, Depends
 from typing import List, Dict, Any, Optional
 import logging
@@ -35,22 +36,22 @@ async def get_classified_hotspots(
 ):
     global _classified_cache
     try:
-        # Build query for Supabase
-        query = supabase_service.table("hotspots").select("*, classifications(*)").order("created_at", desc=True)
-        
-        if min_frp is not None:
-            query = query.gte("frp", min_frp)
-        if max_frp is not None:
-            query = query.lte("frp", max_frp)
-            
-        if limit is not None and limit > 0:
-            query = query.limit(limit)
+        def _fetch_from_supabase():
+            query = supabase_service.table("hotspots").select("*, classifications(*)").order("created_at", desc=True)
+            if min_frp is not None:
+                query = query.gte("frp", min_frp)
+            if max_frp is not None:
+                query = query.lte("frp", max_frp)
+            if limit is not None and limit > 0:
+                query = query.limit(limit)
+            return query.execute()
 
-        # Execute query
-        res = query.execute()
+        res = await asyncio.wait_for(
+            asyncio.to_thread(_fetch_from_supabase),
+            timeout=10.0
+        )
         records = res.data or []
 
-        # Find the latest available acquisition date among records.
         valid_dates = [str(r.get("acq_date"))[:10] for r in records if r.get("acq_date")]
         if valid_dates and days is not None and days > 0:
             from datetime import datetime, timedelta
@@ -150,7 +151,9 @@ async def calculate_persistent_sources_endpoint(request: Request):
 @limiter.limit("60/minute")
 async def get_persistent_sources(request: Request, limit: int = Query(500, le=1000)):
     try:
-        res = supabase_service.table("persistent_sources").select("*").order("active_days", desc=True).limit(limit).execute()
+        def _fetch_persistent():
+            return supabase_service.table("persistent_sources").select("*").order("active_days", desc=True).limit(limit).execute()
+        res = await asyncio.to_thread(_fetch_persistent)
         return {"persistent_sources": res.data or []}
     except Exception as e:
         logger.warning(f"Database connection failed for persistent sources: {e}")
@@ -163,7 +166,7 @@ async def reclassify_current(request: Request, admin_user: Any = Depends(verify_
     """Re-enrich and reclassify current FIRMS observations so improved context rules are applied."""
     try:
         live = await fetch_realtime_hotspots(country="IND", days=1)
-        recent = supabase_service.table("hotspots").select("id,latitude,longitude,acq_date,acq_time").order("created_at", desc=True).limit(5000).execute().data or []
+        recent = await asyncio.to_thread(lambda: supabase_service.table("hotspots").select("id,latitude,longitude,acq_date,acq_time").order("created_at", desc=True).limit(5000).execute().data or [])
         lookup = {}
         for row in recent:
             key = (round(float(row.get("latitude")), 6), round(float(row.get("longitude")), 6), str(row.get("acq_date")), str(row.get("acq_time")).zfill(4))
@@ -200,9 +203,9 @@ async def reclassify_current(request: Request, admin_user: Any = Depends(verify_
                     "osm_source": item.osm_context.osm_source.value if hasattr(item.osm_context.osm_source, "value") else str(item.osm_context.osm_source),
                 },
             }
-            latest = supabase_service.table("classifications").select("id").eq("hotspot_id", db_id).order("created_at", desc=True).limit(1).execute().data or []
+            latest = await asyncio.to_thread(lambda: supabase_service.table("classifications").select("id").eq("hotspot_id", db_id).order("created_at", desc=True).limit(1).execute().data or [])
             if latest:
-                supabase_service.table("classifications").update(payload).eq("id", latest[0]["id"]).execute()
+                await asyncio.to_thread(lambda: supabase_service.table("classifications").update(payload).eq("id", latest[0]["id"]).execute())
                 updated += 1
         return {"matched": len(matched), "reclassified": updated}
     except Exception as exc:
@@ -216,7 +219,7 @@ async def get_hotspot_by_id(request: Request, id: str):
     Fetch a single hotspot from the Supabase database.
     """
     try:
-        response = supabase_service.table("hotspots").select("*, classifications(*)").eq("id", id).single().execute()
+        response = await asyncio.to_thread(lambda: supabase_service.table("hotspots").select("*, classifications(*)").eq("id", id).single().execute())
         if not response.data:
             raise HTTPException(status_code=404, detail="Hotspot not found")
         return response.data
@@ -244,7 +247,7 @@ async def trigger_classification(
 @router.post("/sweep_pending")
 async def sweep_pending_records():
     try:
-        res = supabase_service.table('classifications').select('*').limit(1).execute()
+        res = await asyncio.to_thread(lambda: supabase_service.table('classifications').select('*').limit(1).execute())
         if res.data:
             keys = list(res.data[0].keys())
             return {"keys": keys}

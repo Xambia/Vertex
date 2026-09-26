@@ -1,3 +1,4 @@
+import asyncio
 from fastapi import APIRouter, Response, status
 from config import settings
 from services.status import service_status
@@ -11,7 +12,11 @@ async def health_check(response: Response = None):
     db_status = "OPERATIONAL"
     db_error = None
     try:
-        supabase_service.table("hotspots").select("id").limit(1).execute()
+        # Run DB probe in thread with 3.0s timeout to avoid blocking async event loop
+        await asyncio.wait_for(
+            asyncio.to_thread(lambda: supabase_service.table("hotspots").select("id").limit(1).execute()),
+            timeout=3.0
+        )
     except Exception as exc:
         db_status = "DEGRADED"
         db_error = str(exc)
@@ -20,7 +25,6 @@ async def health_check(response: Response = None):
     services["database"] = {"status": db_status, **({"error": db_error} if db_error else {})}
     overall = "operational" if db_status == "OPERATIONAL" and bool(settings.GEMINI_API_KEY) else "degraded"
     
-    # Do not set 503 response code so health checks from Render/proxies do not fail cold starts
     return {
         "status": overall,
         "services": services,
