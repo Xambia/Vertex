@@ -33,8 +33,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-@app.get("/health", tags=["Health"], include_in_schema=False)
-@app.get("/health/", tags=["Health"])
+@app.api_route("/", methods=["GET", "HEAD"], include_in_schema=False)
+@app.api_route("/health", methods=["GET", "HEAD"], include_in_schema=False)
+@app.api_route("/health/", methods=["GET", "HEAD"], tags=["Health"])
 async def root_health_check(response: Response = None):
     return await health.health_check(response)
 
