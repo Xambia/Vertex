@@ -221,12 +221,10 @@ export function MapView({
           'base-tiles': {
             type: 'raster',
             tiles: [
-              'https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png',
-              'https://b.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png',
-              'https://c.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png',
+              'https://services.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}',
             ],
             tileSize: 256,
-            attribution: '&copy; CARTO &copy; OpenStreetMap contributors',
+            attribution: '&copy; Esri &mdash; Esri, DeLorme, NAVTEQ &copy; OpenStreetMap contributors',
             maxzoom: 19,
           },
         },
@@ -242,19 +240,18 @@ export function MapView({
       };
     }
 
-    // Default base map: clean CartoDB Voyager Light tile set
+    // Default base map: clean keyless OpenStreetMap / Esri Topo Light tile set
     return {
       version: 8,
       sources: {
         'osm-tiles': {
           type: 'raster',
           tiles: [
-            'https://a.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
-            'https://b.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
-            'https://c.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
+            'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+            'https://services.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}',
           ],
           tileSize: 256,
-          attribution: '&copy; CARTO &copy; OpenStreetMap contributors',
+          attribution: '&copy; OpenStreetMap contributors &copy; Esri',
           maxzoom: 19,
         },
       },
