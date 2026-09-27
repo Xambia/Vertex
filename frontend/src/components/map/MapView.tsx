@@ -89,20 +89,15 @@ export function MapView({
         selectedIdStr && (id === selectedIdStr || id === selectedIdRaw)
       );
 
-      // Vibrant thermal colors: raw FIRMS observations get distinct thermal orange (#f97316), classified get specific color
-      let color = CLASSIFICATION_COLORS[type] || '#f97316';
+      // Classification Taxonomy per README specifications
+      let color = CLASSIFICATION_COLORS[type] || '#9ca3af';
       if (isPending) {
-        color = '#f97316';
-      } else if (type === ClassificationType.AGRICULTURAL_BURN) {
-        color = '#ca8a04';
-      }
-      if (isHighRisk && !isSelected) {
-        color = '#dc2626';
+        color = '#9ca3af'; // Gray for Pending / Unclassified
       }
 
-      const radius = isSelected ? 9.0 : isHighRisk ? 8.0 : (isPending ? 6.5 : 6.0);
+      const radius = isSelected ? 9.0 : isHighRisk ? 8.0 : (isPending ? 6.0 : 6.5);
       const strokeWidth = isSelected ? 3 : (isHighRisk ? 2.5 : 2.0);
-      const strokeColor = isSelected ? '#ffffff' : (isHighRisk ? '#991b1b' : (isPending ? '#c2410c' : '#18181b'));
+      const strokeColor = isSelected ? '#ffffff' : (isHighRisk ? '#991b1b' : (isPending ? '#4b5563' : '#18181b'));
       const opacity = 1.0;
 
       return {
@@ -183,30 +178,49 @@ export function MapView({
     const isDark =
       mapStyle === 'Dark Tactical' ||
       mapStyle === 'OpenFreeMap Dark' ||
-      mapStyle === 'Dark Canvas';
+      mapStyle === 'Dark Canvas' ||
+      mapStyle === 'Carto Dark Matter';
 
     if (isSatellite) {
       return {
         version: 8,
         sources: {
-          'base-tiles': {
+          'satellite-tiles': {
             type: 'raster',
             tiles: [
-              'https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+              'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
             ],
             tileSize: 256,
-            attribution:
-              'Tiles &copy; Esri &mdash; Source: Esri, Maxar, Earthstar Geographics, and the GIS User Community',
+            attribution: 'Tiles &copy; Esri &mdash; Source: Esri, Maxar, Earthstar Geographics, and the GIS User Community',
+            maxzoom: 19,
+          },
+          'places-tiles': {
+            type: 'raster',
+            tiles: [
+              'https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',
+            ],
+            tileSize: 256,
+            attribution: '&copy; Esri',
             maxzoom: 19,
           },
         },
         layers: [
           {
-            id: 'base-tiles-layer',
+            id: 'satellite-layer',
             type: 'raster',
-            source: 'base-tiles',
+            source: 'satellite-tiles',
             minzoom: 0,
             maxzoom: 22,
+          },
+          {
+            id: 'places-layer',
+            type: 'raster',
+            source: 'places-tiles',
+            minzoom: 0,
+            maxzoom: 22,
+            paint: {
+              'raster-opacity': 0.85,
+            },
           },
         ],
       };
@@ -216,21 +230,24 @@ export function MapView({
       return {
         version: 8,
         sources: {
-          'base-tiles': {
+          'dark-tiles': {
             type: 'raster',
             tiles: [
-              'https://services.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}',
+              'https://a.basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}@2x.png',
+              'https://b.basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}@2x.png',
+              'https://c.basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}@2x.png',
+              'https://d.basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}@2x.png',
             ],
-            tileSize: 256,
-            attribution: '&copy; Esri &mdash; Esri, DeLorme, NAVTEQ &copy; OpenStreetMap contributors',
+            tileSize: 512,
+            attribution: '&copy; <a href="https://carto.com/">CARTO</a> &copy; OpenStreetMap contributors',
             maxzoom: 19,
           },
         },
         layers: [
           {
-            id: 'base-tiles-layer',
+            id: 'dark-layer',
             type: 'raster',
-            source: 'base-tiles',
+            source: 'dark-tiles',
             minzoom: 0,
             maxzoom: 22,
           },
@@ -238,26 +255,28 @@ export function MapView({
       };
     }
 
-    // Default base map: clean keyless OpenStreetMap / Esri Topo Light tile set
+    // Default: Crystal-clear Retina Voyager base map
     return {
       version: 8,
       sources: {
-        'osm-tiles': {
+        'voyager-tiles': {
           type: 'raster',
           tiles: [
-            'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-            'https://services.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}',
+            'https://a.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}@2x.png',
+            'https://b.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}@2x.png',
+            'https://c.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}@2x.png',
+            'https://d.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}@2x.png',
           ],
-          tileSize: 256,
-          attribution: '&copy; OpenStreetMap contributors &copy; Esri',
+          tileSize: 512,
+          attribution: '&copy; <a href="https://carto.com/">CARTO</a> &copy; OpenStreetMap contributors',
           maxzoom: 19,
         },
       },
       layers: [
         {
-          id: 'osm-tiles-layer',
+          id: 'voyager-layer',
           type: 'raster',
-          source: 'osm-tiles',
+          source: 'voyager-tiles',
           minzoom: 0,
           maxzoom: 22,
         },

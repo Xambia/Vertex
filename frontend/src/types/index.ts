@@ -19,7 +19,7 @@ export const CLASSIFICATION_COLORS: Record<ClassificationType, string> = {
   [ClassificationType.MINING_THERMAL_ACTIVITY]: '#7c3aed', // violet
   [ClassificationType.OTHER_THERMAL_ANOMALY]: '#6366f1', // indigo
   [ClassificationType.UNKNOWN_UNCERTAIN]: '#6b7280', // gray
-  [ClassificationType.UNCLASSIFIED]: '#f97316', // thermal orange (live FIRMS satellite anomaly)
+  [ClassificationType.UNCLASSIFIED]: '#9ca3af', // gray (Unclassified / Pending per README)
 };
 
 export const CLASSIFICATION_LABELS: Record<ClassificationType, string> = {
