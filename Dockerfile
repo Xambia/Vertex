@@ -45,6 +45,11 @@ COPY --from=frontend-builder /app/frontend/public ./public
 COPY --from=frontend-builder /app/frontend/node_modules ./node_modules
 COPY --from=frontend-builder /app/frontend/next.config.ts ./
 
+# Next.js standalone requires static assets inside .next/standalone/
+RUN mkdir -p .next/standalone/.next && \
+    cp -r .next/static .next/standalone/.next/static 2>/dev/null || true && \
+    cp -r public .next/standalone/public 2>/dev/null || true
+
 WORKDIR /app
 
 # Copy Start Script
