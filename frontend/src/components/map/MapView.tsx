@@ -178,10 +178,10 @@ export function MapView({
 
     const isDark =
       mapStyle === 'Dark Tactical' ||
-      mapStyle === 'Carto Dark (OSM Dark)' ||
+      mapStyle === 'OSM Dark' ||
       mapStyle === 'OpenFreeMap Dark' ||
       mapStyle === 'Dark Canvas' ||
-      mapStyle === 'Carto Dark Matter';
+      mapStyle === 'OpenStreetMap Dark';
 
     if (isSatellite) {
       return {
@@ -229,33 +229,8 @@ export function MapView({
     }
 
     if (isDark) {
-      return {
-        version: 8,
-        sources: {
-          'dark-base-tiles': {
-            type: 'raster',
-            tiles: [
-              'https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png',
-              'https://b.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png',
-              'https://c.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png',
-              'https://d.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png',
-              'https://cartodb-basemaps-a.global.ssl.fastly.net/dark_all/{z}/{x}/{y}.png',
-            ],
-            tileSize: 256,
-            attribution: '&copy; <a href="https://carto.com/">CARTO</a> &copy; OpenStreetMap contributors',
-            maxzoom: 19,
-          },
-        },
-        layers: [
-          {
-            id: 'dark-base-layer',
-            type: 'raster',
-            source: 'dark-base-tiles',
-            minzoom: 0,
-            maxzoom: 22,
-          },
-        ],
-      };
+      // 100% OpenStreetMap (OSM) vector dark style powered by OpenFreeMap
+      return 'https://tiles.openfreemap.org/styles/dark';
     }
 
     // Default: Street / Terrain Light (Standard OpenStreetMap Raster)

@@ -744,8 +744,8 @@ export function Sidebar({
                   },
                   {
                     id: 'Dark Tactical',
-                    name: 'Dark Tactical',
-                    provider: 'Tactical Dark Canvas',
+                    name: 'Dark Tactical (OSM)',
+                    provider: 'OpenStreetMap Dark',
                     icon: 'contrast',
                     badge: 'TACTICAL',
                   },
@@ -760,7 +760,7 @@ export function Sidebar({
                   const isSelected =
                     mapStyle === layer.id ||
                     (layer.id.includes('Satellite') && (mapStyle === 'Satellite' || mapStyle === 'Esri Satellite' || mapStyle === 'Satellite Imagery (Esri)')) ||
-                    (layer.id === 'Dark Tactical' && (mapStyle === 'Dark Canvas' || mapStyle === 'OpenFreeMap Dark' || mapStyle === 'Carto Dark (OSM Dark)' || mapStyle === 'Carto Dark Matter')) ||
+                    (layer.id === 'Dark Tactical' && (mapStyle === 'Dark Canvas' || mapStyle === 'OpenFreeMap Dark' || mapStyle === 'OSM Dark' || mapStyle === 'OpenStreetMap Dark')) ||
                     (layer.id === 'OSM Light' && (mapStyle === 'Standard OpenStreetMap' || mapStyle === 'OpenStreetMap'));
 
                   return (
