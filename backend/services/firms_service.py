@@ -147,9 +147,8 @@ async def fetch_realtime_hotspots(
         hotspots = get_fallback_firms_hotspots()
 
     logger.info(f"Ingested {len(hotspots)} real-time hotspots across {sources_to_query}")
-    # Sort by FRP descending so clients can easily slice highest priority if needed
     hotspots.sort(key=lambda h: h.frp or 0.0, reverse=True)
-    return hotspots
+    return hotspots[:100]
 
 async def fetch_area_hotspots(
     bbox: str,
@@ -202,7 +201,7 @@ async def fetch_area_hotspots(
                     break
 
     hotspots.sort(key=lambda h: h.frp or 0.0, reverse=True)
-    return hotspots
+    return hotspots[:100]
 
 def get_fallback_firms_hotspots() -> List[FIRMSHotspot]:
     from datetime import date

@@ -32,7 +32,7 @@ async def get_classified_hotspots(
     max_frp: Optional[float] = None,
     min_confidence: Optional[str] = None,
     risk_level: Optional[str] = None,
-    limit: int = Query(500, le=1000)
+    limit: int = Query(100, le=1000)
 ):
     global _classified_cache
     try:
