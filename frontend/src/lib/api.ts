@@ -14,8 +14,11 @@ import {
  */
 
 const API_URL =
-  process.env.NEXT_PUBLIC_API_URL ||
-  'http://localhost:8000';
+  process.env.NEXT_PUBLIC_API_URL !== undefined
+    ? process.env.NEXT_PUBLIC_API_URL
+    : typeof window !== 'undefined'
+    ? ''
+    : process.env.BACKEND_URL || 'http://127.0.0.1:8000';
 
 
 /*

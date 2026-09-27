@@ -215,9 +215,13 @@ export function MapView({
         sources: {
           'base-tiles': {
             type: 'raster',
-            tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
+            tiles: [
+              'https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png',
+              'https://b.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png',
+              'https://c.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png',
+            ],
             tileSize: 256,
-            attribution: '&copy; OpenStreetMap contributors',
+            attribution: '&copy; CARTO &copy; OpenStreetMap contributors',
             maxzoom: 19,
           },
         },
@@ -228,25 +232,24 @@ export function MapView({
             source: 'base-tiles',
             minzoom: 0,
             maxzoom: 22,
-            paint: {
-              'raster-brightness-max': 0.38,
-              'raster-saturation': -0.85,
-              'raster-contrast': 0.25,
-            },
           },
         ],
       };
     }
 
-    // Default base map: clean OpenStreetMap Light (exact style from user's screenshot)
+    // Default base map: clean CartoDB Voyager Light tile set
     return {
       version: 8,
       sources: {
         'osm-tiles': {
           type: 'raster',
-          tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
+          tiles: [
+            'https://a.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
+            'https://b.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
+            'https://c.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
+          ],
           tileSize: 256,
-          attribution: '&copy; OpenStreetMap contributors',
+          attribution: '&copy; CARTO &copy; OpenStreetMap contributors',
           maxzoom: 19,
         },
       },
