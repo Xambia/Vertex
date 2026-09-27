@@ -142,6 +142,10 @@ async def fetch_realtime_hotspots(
             else:
                 hotspots = fallback_hotspots
 
+    if not hotspots:
+        logger.info("No live FIRMS hotspots returned across all queries, using fallback thermal observations.")
+        hotspots = get_fallback_firms_hotspots()
+
     logger.info(f"Ingested {len(hotspots)} real-time hotspots across {sources_to_query}")
     # Sort by FRP descending so clients can easily slice highest priority if needed
     hotspots.sort(key=lambda h: h.frp or 0.0, reverse=True)
@@ -238,8 +242,8 @@ def get_fallback_firms_hotspots() -> List[FIRMSHotspot]:
 
 async def _fetch_and_parse(url: str) -> List[FIRMSHotspot]:
     if not settings.FIRMS_MAP_KEY:
-        logger.warning("FIRMS_MAP_KEY not configured, returning fallback FIRMS satellite observations for India.")
-        return get_fallback_firms_hotspots()
+        logger.warning("FIRMS_MAP_KEY not configured, skipping live query.")
+        return []
 
     async with httpx.AsyncClient(verify=False) as client:
         try:
@@ -247,9 +251,9 @@ async def _fetch_and_parse(url: str) -> List[FIRMSHotspot]:
             response.raise_for_status()
 
             csv_data = response.text
-            if not csv_data or "Invalid" in csv_data or "error" in csv_data.lower():
-                logger.warning(f"FIRMS API returned invalid response for URL, returning fallback thermal observations.")
-                return get_fallback_firms_hotspots()
+            if not csv_data or "Invalid" in csv_data:
+                logger.warning(f"FIRMS API returned invalid response for URL: {url[:80]}...")
+                return []
 
             reader = csv.DictReader(StringIO(csv_data))
 
@@ -265,8 +269,8 @@ async def _fetch_and_parse(url: str) -> List[FIRMSHotspot]:
                     hotspot = FIRMSHotspot(
                         latitude=num('latitude', 0) or 0.0,
                         longitude=num('longitude', 0) or 0.0,
-                        bright_ti4=num('bright_ti4', row.get('bright_ti5')),
-                        brightness=num('brightness', row.get('bright_ti4')),
+                        bright_ti4=num('bright_ti4', num('brightness')),
+                        brightness=num('brightness', num('bright_ti4')),
                         scan=num('scan'),
                         track=num('track'),
                         version=row.get('version'),
@@ -283,11 +287,11 @@ async def _fetch_and_parse(url: str) -> List[FIRMSHotspot]:
                 except (ValueError, KeyError) as e:
                     logger.warning(f"Failed to parse FIRMS row: {e}")
 
-            logger.info(f"Fetched {len(hotspots)} hotspots from FIRMS")
-            return hotspots if hotspots else get_fallback_firms_hotspots()
+            logger.info(f"Fetched {len(hotspots)} hotspots from FIRMS URL")
+            return hotspots
         except httpx.HTTPStatusError as e:
             logger.error(f"FIRMS API HTTP error {e.response.status_code}: {e}")
-            return get_fallback_firms_hotspots()
+            return []
         except Exception as e:
             logger.error(f"Error fetching FIRMS data: {e}")
-            return get_fallback_firms_hotspots()
+            return []
