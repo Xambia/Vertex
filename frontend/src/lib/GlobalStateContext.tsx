@@ -169,15 +169,9 @@ function normalizeAcqTime(
 function getObservationKey(
   hotspot: ClassifiedHotspot
 ): string {
-
-  const h =
-    hotspot.hotspot;
-
-  const latitude =
-    Number(h.latitude);
-
-  const longitude =
-    Number(h.longitude);
+  const h = hotspot.hotspot;
+  const latitude = Number(h?.latitude);
+  const longitude = Number(h?.longitude);
 
   if (
     !Number.isFinite(latitude) ||
@@ -186,27 +180,71 @@ function getObservationKey(
     return '';
   }
 
-  const date =
-    String(h.acq_date || '')
-      .slice(0, 10);
-
-  const time =
-    normalizeAcqTime(
-      h.acq_time
-    );
-
-  const satellite =
-    String(h.satellite || '').trim().toUpperCase();
+  const date = String(h?.acq_date || '').slice(0, 10);
 
   return [
-    latitude.toFixed(5),
-    longitude.toFixed(5),
+    latitude.toFixed(3),
+    longitude.toFixed(3),
     date,
-    time,
-    satellite,
   ].join('|');
 }
 
+export function deduplicateHotspots(list: ClassifiedHotspot[]): ClassifiedHotspot[] {
+  if (!Array.isArray(list) || list.length === 0) return [];
+
+  // Sort: prefer classified over unclassified, then by higher FRP
+  const sorted = [...list].sort((a, b) => {
+    const aType = a?.classification?.classification;
+    const bType = b?.classification?.classification;
+    const aClass = aType && aType !== ClassificationType.UNCLASSIFIED ? 1 : 0;
+    const bClass = bType && bType !== ClassificationType.UNCLASSIFIED ? 1 : 0;
+    if (bClass !== aClass) return bClass - aClass;
+
+    const aFrp = Number(a?.hotspot?.frp ?? 0);
+    const bFrp = Number(b?.hotspot?.frp ?? 0);
+    return bFrp - aFrp;
+  });
+
+  const result: ClassifiedHotspot[] = [];
+
+  for (const item of sorted) {
+    const lat1 = Number(item?.hotspot?.latitude);
+    const lon1 = Number(item?.hotspot?.longitude);
+    const date1 = String(item?.hotspot?.acq_date ?? '').slice(0, 10);
+    const id1 = String(item?.id ?? '');
+    const dbId1 = String(item?.hotspot?.id ?? '');
+
+    if (!Number.isFinite(lat1) || !Number.isFinite(lon1)) continue;
+
+    let isDup = false;
+    for (const existing of result) {
+      const id2 = String(existing?.id ?? '');
+      const dbId2 = String(existing?.hotspot?.id ?? '');
+
+      if ((id1 && (id1 === id2 || id1 === dbId2)) || (dbId1 && (dbId1 === id2 || dbId1 === dbId2))) {
+        isDup = true;
+        break;
+      }
+
+      const lat2 = Number(existing?.hotspot?.latitude);
+      const lon2 = Number(existing?.hotspot?.longitude);
+      const date2 = String(existing?.hotspot?.acq_date ?? '').slice(0, 10);
+
+      if (date1 && date2 && date1 === date2) {
+        if (Math.abs(lat1 - lat2) <= 0.003 && Math.abs(lon1 - lon2) <= 0.003) {
+          isDup = true;
+          break;
+        }
+      }
+    }
+
+    if (!isDup) {
+      result.push(item);
+    }
+  }
+
+  return result;
+}
 
 /*
  * =========================================================
@@ -233,7 +271,7 @@ function mergeClassifiedIntoMap(
   classifiedData: ClassifiedHotspot[]
 ): ClassifiedHotspot[] {
   if (!currentMapData || currentMapData.length === 0) {
-    return classifiedData || [];
+    return deduplicateHotspots(classifiedData || []);
   }
 
   const classifiedByKey = new Map<string, ClassifiedHotspot>();
@@ -245,7 +283,12 @@ function mergeClassifiedIntoMap(
       classifiedByKey.set(key, classified);
     }
     if (classified.id) {
-      classifiedById.set(String(classified.id), classified);
+      const idStr = String(classified.id);
+      classifiedById.set(idStr, classified);
+      classifiedById.set(idStr.replace(/^vtx-/i, ''), classified);
+    }
+    if (classified.hotspot?.id) {
+      classifiedById.set(String(classified.hotspot.id), classified);
     }
   }
 
@@ -253,9 +296,13 @@ function mergeClassifiedIntoMap(
 
   const mergedLive = currentMapData.map((liveHotspot) => {
     const key = getObservationKey(liveHotspot);
+    const liveId = String(liveHotspot.id);
+    const liveDbId = String(liveHotspot.hotspot?.id ?? '');
+
     const classified =
       (key ? classifiedByKey.get(key) : undefined) ||
-      classifiedById.get(String(liveHotspot.id));
+      classifiedById.get(liveId) ||
+      classifiedById.get(liveDbId);
 
     if (!classified) {
       return liveHotspot;
@@ -288,16 +335,13 @@ function mergeClassifiedIntoMap(
   for (const classified of classifiedData) {
     if (!matchedClassifiedIds.has(String(classified.id))) {
       const classDate = String(classified.hotspot?.acq_date || '').slice(0, 10);
-      // Only retain unmatched historical items if no new live date exists
-      // or if the classified item is from the same active date batch.
-      // Once new live detections arrive, old ones from yesterday retire automatically.
       if (!latestLiveDate || classDate >= latestLiveDate) {
         result.push(classified);
       }
     }
   }
 
-  return result;
+  return deduplicateHotspots(result);
 }
 
 

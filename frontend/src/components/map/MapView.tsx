@@ -187,7 +187,7 @@ export function MapView({
       return {
         version: 8,
         sources: {
-          'base-tiles': {
+          'satellite-base-tiles': {
             type: 'raster',
             tiles: [
               'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
@@ -196,7 +196,7 @@ export function MapView({
             attribution: 'Tiles &copy; Esri &mdash; Source: Esri, Maxar, Earthstar Geographics, and the GIS User Community',
             maxzoom: 19,
           },
-          'places-tiles': {
+          'satellite-places-tiles': {
             type: 'raster',
             tiles: [
               'https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',
@@ -208,16 +208,16 @@ export function MapView({
         },
         layers: [
           {
-            id: 'base-tiles-layer',
+            id: 'satellite-base-layer',
             type: 'raster',
-            source: 'base-tiles',
+            source: 'satellite-base-tiles',
             minzoom: 0,
             maxzoom: 22,
           },
           {
-            id: 'places-tiles-layer',
+            id: 'satellite-places-layer',
             type: 'raster',
-            source: 'places-tiles',
+            source: 'satellite-places-tiles',
             minzoom: 0,
             maxzoom: 22,
             paint: {
@@ -232,13 +232,14 @@ export function MapView({
       return {
         version: 8,
         sources: {
-          'base-tiles': {
+          'dark-base-tiles': {
             type: 'raster',
             tiles: [
               'https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png',
               'https://b.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png',
               'https://c.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png',
               'https://d.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png',
+              'https://cartodb-basemaps-a.global.ssl.fastly.net/dark_all/{z}/{x}/{y}.png',
             ],
             tileSize: 256,
             attribution: '&copy; <a href="https://carto.com/">CARTO</a> &copy; OpenStreetMap contributors',
@@ -247,9 +248,9 @@ export function MapView({
         },
         layers: [
           {
-            id: 'base-tiles-layer',
+            id: 'dark-base-layer',
             type: 'raster',
-            source: 'base-tiles',
+            source: 'dark-base-tiles',
             minzoom: 0,
             maxzoom: 22,
           },
@@ -261,9 +262,14 @@ export function MapView({
     return {
       version: 8,
       sources: {
-        'base-tiles': {
+        'light-base-tiles': {
           type: 'raster',
-          tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
+          tiles: [
+            'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+            'https://a.tile.openstreetmap.org/{z}/{x}/{y}.png',
+            'https://b.tile.openstreetmap.org/{z}/{x}/{y}.png',
+            'https://c.tile.openstreetmap.org/{z}/{x}/{y}.png',
+          ],
           tileSize: 256,
           attribution: '&copy; OpenStreetMap contributors',
           maxzoom: 19,
@@ -271,9 +277,9 @@ export function MapView({
       },
       layers: [
         {
-          id: 'base-tiles-layer',
+          id: 'light-base-layer',
           type: 'raster',
-          source: 'base-tiles',
+          source: 'light-base-tiles',
           minzoom: 0,
           maxzoom: 22,
         },
@@ -286,6 +292,7 @@ export function MapView({
   return (
     <div className="relative w-full h-full overflow-hidden bg-background">
       <Map
+        key={mapStyle}
         ref={mapRef}
         {...viewState}
         renderWorldCopies={true}

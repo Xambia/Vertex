@@ -17,7 +17,7 @@ import {
   INDIA_ZOOM,
 } from '@/lib/constants';
 
-import { useGlobalState } from '@/lib/GlobalStateContext';
+import { useGlobalState, deduplicateHotspots } from '@/lib/GlobalStateContext';
 import { useVertexUser } from '@/lib/auth-session';
 import { AuthRequiredDialog } from '@/components/auth/AuthRequiredDialog';
 
@@ -103,7 +103,7 @@ function MapWorkspace() {
       return '';
     }
 
-    return `${lat.toFixed(5)}|${lon.toFixed(5)}|${date}|${time}|${satellite}`;
+    return `${lat.toFixed(3)}|${lon.toFixed(3)}|${date}`;
   };
 
   const classifiedByIdentity = useMemo(() => {
@@ -158,7 +158,7 @@ function MapWorkspace() {
       merged.push(raw);
     }
 
-    return merged;
+    return deduplicateHotspots(merged);
   }, [hotspots, mapHotspots]);
 
   /*

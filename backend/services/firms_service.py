@@ -52,6 +52,37 @@ FALLBACK_SOURCE_ORDER = [
     'MODIS_NRT'
 ]
 
+def deduplicate_spatial_hotspots(raw_hotspots: List[FIRMSHotspot], dist_thresh_deg: float = 0.003) -> List[FIRMSHotspot]:
+    """
+    Deduplicate thermal hotspots within spatial threshold (~300m / 0.003 degrees).
+    Multiple satellite sensors (SNPP, NOAA20, NOAA21, MODIS) observing the same thermal event
+    on the same date are merged, retaining the highest FRP observation.
+    """
+    if not raw_hotspots:
+        return []
+
+    sorted_hotspots = sorted(raw_hotspots, key=lambda h: h.frp or 0.0, reverse=True)
+    deduped: List[FIRMSHotspot] = []
+
+    for candidate in sorted_hotspots:
+        lat1, lon1 = candidate.latitude, candidate.longitude
+        date1 = str(candidate.acq_date or "")[:10]
+
+        is_duplicate = False
+        for existing in deduped:
+            lat2, lon2 = existing.latitude, existing.longitude
+            date2 = str(existing.acq_date or "")[:10]
+
+            if date1 and date2 and date1 == date2:
+                if abs(lat1 - lat2) <= dist_thresh_deg and abs(lon1 - lon2) <= dist_thresh_deg:
+                    is_duplicate = True
+                    break
+
+        if not is_duplicate:
+            deduped.append(candidate)
+
+    return deduped
+
 async def fetch_realtime_hotspots(
     country: str = 'IND',
     days: int = 1,
@@ -146,6 +177,9 @@ async def fetch_realtime_hotspots(
         logger.info("No live FIRMS hotspots returned across all queries, using fallback thermal observations.")
         hotspots = get_fallback_firms_hotspots()
 
+    # Deduplicate spatial overlaps across satellite passes
+    hotspots = deduplicate_spatial_hotspots(hotspots)
+
     logger.info(f"Ingested {len(hotspots)} real-time hotspots across {sources_to_query}")
     hotspots.sort(key=lambda h: h.frp or 0.0, reverse=True)
     return hotspots[:100]
@@ -200,6 +234,7 @@ async def fetch_area_hotspots(
                 if hotspots:
                     break
 
+    hotspots = deduplicate_spatial_hotspots(hotspots)
     hotspots.sort(key=lambda h: h.frp or 0.0, reverse=True)
     return hotspots[:100]
 
