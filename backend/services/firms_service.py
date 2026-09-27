@@ -261,9 +261,16 @@ async def _fetch_and_parse(url: str) -> List[FIRMSHotspot]:
                 try:
                     def num(name, fallback=None):
                         value = row.get(name, fallback)
-                        if value in (None, ''):
+                        if value in (None, '', 'nan', 'NaN', 'null', 'None', 'inf', '-inf'):
                             return None
-                        return float(value)
+                        try:
+                            val = float(value)
+                            import math
+                            if math.isnan(val) or math.isinf(val):
+                                return None
+                            return val
+                        except (ValueError, TypeError):
+                            return None
 
                     hotspot = FIRMSHotspot(
                         latitude=num('latitude', 0) or 0.0,
@@ -283,7 +290,7 @@ async def _fetch_and_parse(url: str) -> List[FIRMSHotspot]:
                         instrument=row.get('instrument')
                     )
                     hotspots.append(hotspot)
-                except (ValueError, KeyError) as e:
+                except (ValueError, KeyError, TypeError) as e:
                     logger.warning(f"Failed to parse FIRMS row: {e}")
 
             logger.info(f"Fetched {len(hotspots)} hotspots from FIRMS URL")
