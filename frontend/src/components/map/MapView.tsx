@@ -89,22 +89,20 @@ export function MapView({
         selectedIdStr && (id === selectedIdStr || id === selectedIdRaw)
       );
 
-      // Vibrant thermal colors: raw FIRMS observations get crisp neutral gray, classified get specific color
-      let color = CLASSIFICATION_COLORS[ClassificationType.UNCLASSIFIED] || '#9ca3af';
-      if (!isPending) {
-        if (type === ClassificationType.AGRICULTURAL_BURN) {
-          color = '#ca8a04';
-        } else if (CLASSIFICATION_COLORS[type]) {
-          color = CLASSIFICATION_COLORS[type];
-        }
+      // Vibrant thermal colors: raw FIRMS observations get distinct thermal orange (#f97316), classified get specific color
+      let color = CLASSIFICATION_COLORS[type] || '#f97316';
+      if (isPending) {
+        color = '#f97316';
+      } else if (type === ClassificationType.AGRICULTURAL_BURN) {
+        color = '#ca8a04';
       }
       if (isHighRisk && !isSelected) {
         color = '#dc2626';
       }
 
-      const radius = isSelected ? 8.5 : isHighRisk ? 7.5 : (isPending ? 5.5 : 6);
-      const strokeWidth = isSelected ? 3 : (isHighRisk ? 2.5 : 1.8);
-      const strokeColor = isSelected ? '#ffffff' : (isHighRisk ? '#991b1b' : '#18181b');
+      const radius = isSelected ? 9.0 : isHighRisk ? 8.0 : (isPending ? 6.5 : 6.0);
+      const strokeWidth = isSelected ? 3 : (isHighRisk ? 2.5 : 2.0);
+      const strokeColor = isSelected ? '#ffffff' : (isHighRisk ? '#991b1b' : (isPending ? '#c2410c' : '#18181b'));
       const opacity = 1.0;
 
       return {
