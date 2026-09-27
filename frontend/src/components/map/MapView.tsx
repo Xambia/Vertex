@@ -255,28 +255,23 @@ export function MapView({
       };
     }
 
-    // Default: Crystal-clear Retina Voyager base map
+    // OpenStreetMap standard world map style
     return {
       version: 8,
       sources: {
-        'voyager-tiles': {
+        'osm-tiles': {
           type: 'raster',
-          tiles: [
-            'https://a.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}@2x.png',
-            'https://b.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}@2x.png',
-            'https://c.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}@2x.png',
-            'https://d.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}@2x.png',
-          ],
-          tileSize: 512,
-          attribution: '&copy; <a href="https://carto.com/">CARTO</a> &copy; OpenStreetMap contributors',
+          tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
+          tileSize: 256,
+          attribution: '&copy; OpenStreetMap contributors',
           maxzoom: 19,
         },
       },
       layers: [
         {
-          id: 'voyager-layer',
+          id: 'osm-tiles-layer',
           type: 'raster',
-          source: 'voyager-tiles',
+          source: 'osm-tiles',
           minzoom: 0,
           maxzoom: 22,
         },
@@ -291,8 +286,8 @@ export function MapView({
       <Map
         ref={mapRef}
         {...viewState}
-        renderWorldCopies={false}
-        minZoom={2.5}
+        renderWorldCopies={true}
+        minZoom={2.0}
         onMove={onMove}
         onMoveEnd={onMoveEnd}
         onError={(e) => {
