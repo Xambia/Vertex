@@ -25,12 +25,7 @@ export function MapView({
   zoom = DEFAULT_ZOOM,
 }: MapViewProps) {
   const { mapStyle, mapCenter: savedCenter, mapZoom: savedZoom, setMapCenter, setMapZoom } = useGlobalState();
-  
-  // Display strictly up to 100 thermal fire anomalies as fetched from API
-  const visibleHotspots = useMemo(() => {
-    if (!Array.isArray(hotspots)) return [];
-    return hotspots.slice(0, 100);
-  }, [hotspots]);
+  const visibleHotspots = hotspots;
   const [mounted, setMounted] = useState(false);
   const mapRef = useRef<MapRef>(null);
   const hasAutoFitted = useRef(false);
@@ -66,9 +61,14 @@ export function MapView({
 
   const onMove = useCallback((event: ViewStateChangeEvent) => setViewState(event.viewState), []);
 
-  const selectedLongitude = Number(selectedHotspot?.hotspot?.longitude);
-  const selectedLatitude = Number(selectedHotspot?.hotspot?.latitude);
-  const hasValidSelectedCoordinates = Number.isFinite(selectedLongitude) && Number.isFinite(selectedLatitude);
+  const selectedLongitude = Number(
+    selectedHotspot?.hotspot?.longitude ?? (selectedHotspot as any)?.longitude
+  );
+  const selectedLatitude = Number(
+    selectedHotspot?.hotspot?.latitude ?? (selectedHotspot as any)?.latitude
+  );
+  const hasValidSelectedCoordinates =
+    Number.isFinite(selectedLongitude) && Number.isFinite(selectedLatitude);
   const selectedIdStr = String(selectedHotspot?.id ?? '');
   const selectedIdRaw = selectedIdStr.replace(/^vtx-/i, '');
 
@@ -81,30 +81,29 @@ export function MapView({
       const riskScore = Number(hotspot?.classification?.risk_score ?? 0);
       const isHighRisk = riskLevel === 'HIGH' || riskLevel === 'CRITICAL' || riskScore >= 70;
       const isPriority = !isPending || isHighRisk;
-      const longitude = Number(hotspot?.hotspot?.longitude);
-      const latitude = Number(hotspot?.hotspot?.latitude);
+      const longitude = Number(hotspot?.hotspot?.longitude ?? (hotspot as any)?.longitude);
+      const latitude = Number(hotspot?.hotspot?.latitude ?? (hotspot as any)?.latitude);
       if (!Number.isFinite(longitude) || !Number.isFinite(latitude)) return null;
       const id = String(hotspot.id);
       const isSelected = Boolean(
         selectedIdStr && (id === selectedIdStr || id === selectedIdRaw)
       );
 
-      // Vibrant thermal colors: raw FIRMS observations get crisp neutral gray, classified get specific color
-      let color = CLASSIFICATION_COLORS[ClassificationType.UNCLASSIFIED] || '#9ca3af';
+      // Vibrant thermal colors: raw FIRMS observations get crisp amber-orange, classified get specific color
+      let color = '#ea580c';
       if (!isPending) {
         if (type === ClassificationType.AGRICULTURAL_BURN) {
-          color = '#ca8a04';
+          color = '#eab308';
         } else if (CLASSIFICATION_COLORS[type]) {
           color = CLASSIFICATION_COLORS[type];
+        } else if (isHighRisk) {
+          color = '#dc2626';
         }
-      }
-      if (isHighRisk && !isSelected) {
-        color = '#dc2626';
       }
 
       const radius = isSelected ? 8.5 : isHighRisk ? 7.5 : (isPending ? 5.5 : 6);
       const strokeWidth = isSelected ? 3 : (isHighRisk ? 2.5 : 1.8);
-      const strokeColor = isSelected ? '#ffffff' : (isHighRisk ? '#991b1b' : '#18181b');
+      const strokeColor = isSelected ? '#ffffff' : '#18181b';
       const opacity = 1.0;
 
       return {
@@ -133,8 +132,8 @@ export function MapView({
     if (!visibleHotspots.length) return null;
     let minLon = Infinity, minLat = Infinity, maxLon = -Infinity, maxLat = -Infinity;
     for (const hotspot of visibleHotspots) {
-      const lon = Number(hotspot?.hotspot?.longitude);
-      const lat = Number(hotspot?.hotspot?.latitude);
+      const lon = Number(hotspot?.hotspot?.longitude ?? (hotspot as any)?.longitude);
+      const lat = Number(hotspot?.hotspot?.latitude ?? (hotspot as any)?.latitude);
       if (!Number.isFinite(lon) || !Number.isFinite(lat)) continue;
       minLon = Math.min(minLon, lon); minLat = Math.min(minLat, lat);
       maxLon = Math.max(maxLon, lon); maxLat = Math.max(maxLat, lat);
@@ -159,12 +158,17 @@ export function MapView({
   const onClick = useCallback((event: MapLayerMouseEvent) => {
     const feature = event.features?.find((item) => item?.layer?.id === 'unclustered-point');
     if (!feature) {
-      // Map only deselects via X button (not background click)
+      // Keep active hotspot selected when clicking or panning on the map background.
+      // Deselection occurs only when clicking the popup's X close button.
       return;
     }
     const clickedId = String(feature.properties?.id ?? '');
     if (!clickedId) return;
-    const selected = visibleHotspots.find((hotspot) => String(hotspot.id) === clickedId);
+    const selected = visibleHotspots.find(
+      (hotspot) =>
+        String(hotspot.id) === clickedId ||
+        String(hotspot.id).replace(/^vtx-/i, '') === clickedId.replace(/^vtx-/i, '')
+    );
     if (selected) onSelectHotspot?.(selected);
   }, [visibleHotspots, onSelectHotspot]);
 
@@ -220,11 +224,9 @@ export function MapView({
         sources: {
           'base-tiles': {
             type: 'raster',
-            tiles: [
-              'https://services.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}',
-            ],
+            tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
             tileSize: 256,
-            attribution: '&copy; Esri &mdash; Esri, DeLorme, NAVTEQ &copy; OpenStreetMap contributors',
+            attribution: '&copy; OpenStreetMap contributors',
             maxzoom: 19,
           },
         },
@@ -235,23 +237,25 @@ export function MapView({
             source: 'base-tiles',
             minzoom: 0,
             maxzoom: 22,
+            paint: {
+              'raster-brightness-max': 0.38,
+              'raster-saturation': -0.85,
+              'raster-contrast': 0.25,
+            },
           },
         ],
       };
     }
 
-    // Default base map: clean keyless OpenStreetMap / Esri Topo Light tile set
+    // Default base map: clean OpenStreetMap Light (exact style from user's screenshot)
     return {
       version: 8,
       sources: {
         'osm-tiles': {
           type: 'raster',
-          tiles: [
-            'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-            'https://services.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}',
-          ],
+          tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
           tileSize: 256,
-          attribution: '&copy; OpenStreetMap contributors &copy; Esri',
+          attribution: '&copy; OpenStreetMap contributors',
           maxzoom: 19,
         },
       },
@@ -314,8 +318,10 @@ export function MapView({
             longitude={selectedLongitude}
             latitude={selectedLatitude}
             anchor="bottom"
+            offset={12}
             onClose={() => onSelectHotspot?.(null)}
             closeOnClick={false}
+            closeButton={false}
             className="vertex-popup"
           >
             <FirePopup

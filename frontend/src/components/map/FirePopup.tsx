@@ -12,12 +12,12 @@ export function FirePopup({
   hotspot: ClassifiedHotspot;
   onClose?: () => void;
 }) {
-  const c = hotspot.classification || ({} as any);
-  const f = hotspot.hotspot || ({} as any);
-  const ctx = hotspot.context || ({} as any);
+  const c = hotspot?.classification || ({} as any);
+  const f = hotspot?.hotspot || ({} as any);
+  const ctx = hotspot?.context || (hotspot as any)?.osm_context || {};
 
   const type =
-    c.classification as ClassificationType;
+    (c?.classification || '') as ClassificationType;
 
   const color =
     CLASSIFICATION_COLORS[type] ||
@@ -26,8 +26,6 @@ export function FirePopup({
   const label =
     CLASSIFICATION_LABELS[type] ||
     'Unknown / Uncertain';
-
-  const confPercent = Number(c.confidence_score ?? 0) * 100;
 
   return (
     <div className="w-[340px] bg-surface-container-low border border-outline-variant rounded-none overflow-hidden flex flex-col font-body-md shadow-2xl">
@@ -44,18 +42,34 @@ export function FirePopup({
             </span>
 
             <span className="font-mono-data-sm text-[10px] bg-surface-container-highest text-on-surface px-2 py-0.5 rounded-none border border-outline-variant">
-              {isNaN(confPercent) ? '0.0' : confPercent.toFixed(1)}% Confidence
+              {((Number(c?.confidence_score) || 0) * 100).toFixed(1)}% Confidence
             </span>
           </div>
 
           {onClose && (
             <button
               type="button"
-              onClick={onClose}
-              className="text-secondary hover:text-on-surface p-0.5 -mr-1 transition-colors flex items-center justify-center"
-              title="Close Popup"
+              onClick={(e) => {
+                e.stopPropagation();
+                onClose();
+              }}
+              className="p-1 ml-2 rounded bg-surface-container-highest hover:bg-error/20 text-on-surface-variant hover:text-error border border-outline-variant transition-all focus:outline-none cursor-pointer flex items-center justify-center shrink-0"
+              title="Close card"
+              aria-label="Close card"
             >
-              <span className="material-symbols-outlined text-[16px]">close</span>
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                className="w-3.5 h-3.5"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <line x1="18" y1="6" x2="6" y2="18" />
+                <line x1="6" y1="6" x2="18" y2="18" />
+              </svg>
             </button>
           )}
         </div>
@@ -109,7 +123,7 @@ export function FirePopup({
               </span>
 
               <span className="font-mono-data-md text-primary">
-                {Number(f.frp ?? 0).toFixed(1)} MW
+                {(Number(f?.frp) || 0).toFixed(1)} MW
               </span>
             </div>
 
@@ -119,11 +133,11 @@ export function FirePopup({
               </span>
 
               <span className="font-mono-data-md text-primary">
-                {(f.brightness && Number(f.brightness) > 0) ? Number(f.brightness).toFixed(1) : 'N/A'} K
+                {(f.brightness && f.brightness > 0) ? f.brightness.toFixed(1) : 'N/A'} K
               </span>
             </div>
 
-            <div className="bg-surface-container p-2 rounded-none col-span-2 flex justify-between items-center border border-outline-variant">
+            <div className="bg-surface-container p-2 rounded-none col-span-2 flex justify-between border border-outline-variant">
               <div>
                 <span className="text-secondary text-[10px] font-mono block uppercase">
                   Acquisition
@@ -134,21 +148,14 @@ export function FirePopup({
                 </span>
               </div>
 
-              <div className="flex items-center gap-2">
-                <span className={`font-mono text-[9px] font-bold px-1.5 py-0.5 rounded uppercase ${
-                  f.daynight === 'D' ? 'bg-amber-500/20 text-amber-700 border border-amber-500/30' : 'bg-indigo-500/20 text-indigo-700 border border-indigo-500/30'
-                }`}>
-                  {f.daynight === 'D' ? 'DAY' : 'NIGHT'}
+              <div className="text-right">
+                <span className="text-secondary text-[10px] font-mono block uppercase">
+                  Satellite
                 </span>
-                <div className="text-right">
-                  <span className="text-secondary text-[10px] font-mono block uppercase">
-                    Satellite
-                  </span>
 
-                  <span className="font-mono-data-sm text-on-surface">
-                    {f.satellite}
-                  </span>
-                </div>
+                <span className="font-mono-data-sm text-on-surface">
+                  {f.satellite}
+                </span>
               </div>
             </div>
           </div>

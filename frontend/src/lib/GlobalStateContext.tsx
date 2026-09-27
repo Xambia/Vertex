@@ -30,11 +30,8 @@ import {
 } from './constants';
 
 const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL !== undefined
-    ? process.env.NEXT_PUBLIC_API_URL
-    : typeof window !== 'undefined'
-    ? ''
-    : process.env.BACKEND_URL || 'http://127.0.0.1:8000';
+  process.env.NEXT_PUBLIC_API_URL ||
+  (typeof window !== 'undefined' ? '' : 'http://127.0.0.1:8000');
 
 // Suppress harmless browser AbortErrors caused by component unmounting,
 // rapid state updates, or MapLibre GL tile cancellation.
@@ -195,15 +192,11 @@ function getObservationKey(
       h.acq_time
     );
 
-  const satellite =
-    String(h.satellite || '').trim().toUpperCase();
-
   return [
-    latitude.toFixed(5),
-    longitude.toFixed(5),
+    latitude.toFixed(6),
+    longitude.toFixed(6),
     date,
     time,
-    satellite,
   ].join('|');
 }
 
@@ -397,34 +390,14 @@ export function GlobalStateProvider({
     ClassifiedHotspot | null
   >(null);
 
-
   const setSelectedHotspot = (
     hotspot: ClassifiedHotspot | null
   ) => {
-
-    setSelectedHotspotState(
-      hotspot
-    );
-
-
-    if (
-      typeof window !==
-      'undefined'
-    ) {
-
-      if (hotspot) {
-
-        localStorage.setItem(
-          'vtx_selectedHotspot',
-          hotspot.id
-        );
-
-      } else {
-
-        localStorage.removeItem(
-          'vtx_selectedHotspot'
-        );
-      }
+    setSelectedHotspotState(hotspot);
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.removeItem('vtx_selectedHotspot');
+      } catch {}
     }
   };
 
@@ -778,14 +751,14 @@ export function GlobalStateProvider({
 
 
       if (!response.ok) {
-        console.warn(`[VERTEX] FIRMS realtime API status ${response.status}; using classified database stream.`);
+        console.warn(
+          `Failed to fetch current FIRMS observations (${response.status})`
+        );
         return [];
       }
 
-
       const geojson =
         await response.json();
-
 
       if (
         geojson?.type !==
@@ -794,10 +767,7 @@ export function GlobalStateProvider({
           geojson.features
         )
       ) {
-
-        throw new Error(
-          'Invalid FIRMS GeoJSON response'
-        );
+        return [];
       }
 
 
@@ -1068,79 +1038,63 @@ export function GlobalStateProvider({
 
         /*
          * ---------------------------------------------------
-         * 4. Map stream & Demo Fallback
+         * 4. Map stream
          * ---------------------------------------------------
+         *
+         * IMPORTANT:
+         *
+         * This is no longer just raw PENDING FIRMS data.
+         *
+         * It contains the backend classification whenever
+         * the corresponding FIRMS observation has one.
          */
 
-        if (mergedInitialMapData.length === 0 && initialClassifiedData.length === 0) {
-          console.log('[VERTEX] Live stream empty; falling back to demo hotspot dataset.');
-          setHotspots(DEMO_HOTSPOTS);
-          setMapHotspots(DEMO_HOTSPOTS);
-          setAnalyticsSummary(generateDemoSummary(DEMO_HOTSPOTS));
-          setIsDemoMode(true);
-        } else {
-          setMapHotspots(
-            mergedInitialMapData
-          );
-          setIsDemoMode(
-            false
-          );
-        }
+        setMapHotspots(
+          mergedInitialMapData
+        );
 
 
         /*
          * ---------------------------------------------------
-         * 5. Restore selected hotspot
+         * Demo fallback — if both live streams are empty
+         * (NASA cold, key invalid, or no satellite pass yet),
+         * treat it the same as a network error and load
+         * DEMO_HOTSPOTS so the map always shows data.
          * ---------------------------------------------------
          */
 
         if (
-          typeof window !==
-          'undefined'
+          mergedInitialMapData.length === 0 &&
+          initialClassifiedData.length === 0
         ) {
-
-          const savedId =
-            localStorage.getItem(
-              'vtx_selectedHotspot'
-            );
-
-
-          if (savedId) {
-
-            const found =
-              mergedInitialMapData.find(
-                (
-                  hotspot
-                ) =>
-                  hotspot.id ===
-                  savedId
-              );
-
-
-            if (found) {
-
-              setSelectedHotspotState(
-                found
-              );
-
-            } else {
-
-              const fallback =
-                initialClassifiedData.find(
-                  (
-                    hotspot
-                  ) =>
-                    hotspot.id ===
-                    savedId
-                );
-
-
-              setSelectedHotspotState(
-                fallback || null
-              );
-            }
-          }
+          throw new Error(
+            'No live hotspot data available — loading demo cache'
+          );
         }
+
+
+        setIsDemoMode(
+          false
+        );
+
+
+        /*
+         * ---------------------------------------------------
+         * 5. Synchronize active in-memory selection
+         * ---------------------------------------------------
+         */
+
+        setSelectedHotspotState((prev) => {
+          if (!prev) return null;
+          const found = mergedInitialMapData.find(
+            (hotspot) => hotspot.id === prev.id
+          );
+          if (found) return found;
+          const fallback = initialClassifiedData.find(
+            (hotspot) => hotspot.id === prev.id
+          );
+          return fallback || prev;
+        });
 
 
         /*
@@ -1216,38 +1170,13 @@ export function GlobalStateProvider({
                * the newly enriched backend object.
                */
 
-              if (
-                typeof window !==
-                'undefined'
-              ) {
-
-                const savedId =
-                  localStorage.getItem(
-                    'vtx_selectedHotspot'
-                  );
-
-
-                if (savedId) {
-
-                  const found =
-                    mergedEnrichedMapData.find(
-                      (
-                        hotspot
-                      ) =>
-                        hotspot.id ===
-                        savedId
-                    );
-
-
-                  if (found) {
-
-                    setSelectedHotspotState(
-                      found
-                    );
-
-                  }
-                }
-              }
+              setSelectedHotspotState((prev) => {
+                if (!prev) return null;
+                const found = mergedEnrichedMapData.find(
+                  (hotspot) => hotspot.id === prev.id
+                );
+                return found || prev;
+              });
 
             }
           )
@@ -1336,37 +1265,16 @@ export function GlobalStateProvider({
 
 
         /*
-         * Restore demo selection.
+         * Keep demo selection in sync if active
          */
 
-        if (
-          typeof window !==
-          'undefined'
-        ) {
-
-          const savedId =
-            localStorage.getItem(
-              'vtx_selectedHotspot'
-            );
-
-
-          if (savedId) {
-
-            const found =
-              DEMO_HOTSPOTS.find(
-                (
-                  hotspot
-                ) =>
-                  hotspot.id ===
-                  savedId
-              );
-
-
-            setSelectedHotspotState(
-              found || null
-            );
-          }
-        }
+        setSelectedHotspotState((prev) => {
+          if (!prev) return null;
+          const found = DEMO_HOTSPOTS.find(
+            (hotspot) => hotspot.id === prev.id
+          );
+          return found || null;
+        });
 
       } finally {
 
@@ -1384,25 +1292,23 @@ export function GlobalStateProvider({
    */
 
   useEffect(() => {
-    let cancelled = false;
-    let retriesLeft = 8; // 8 * 5s = 40s total retry window for cold start
 
-    const tryLoad = async () => {
-      try {
-        await refreshData();
-      } catch (err) {
-        if (!cancelled && retriesLeft > 0) {
-          retriesLeft--;
-          setTimeout(tryLoad, 5000);
-        }
-      }
-    };
+    // On cold start the backend returns empty immediately and fires classification
+    // in the background. We auto-retry once after 40 s so data appears automatically.
+    let retryTimer: ReturnType<typeof setTimeout> | null = null;
 
-    tryLoad();
+    refreshData().then(() => {
+      // If hotspots are still empty after the first load, schedule a retry
+      // (captured via closure — state won't be updated yet, so we just always retry once)
+      retryTimer = setTimeout(() => {
+        refreshData().catch(() => {});
+      }, 40_000);
+    }).catch(() => {});
 
     return () => {
-      cancelled = true;
+      if (retryTimer) clearTimeout(retryTimer);
     };
+
   }, []);
 
 

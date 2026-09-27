@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>VERTEX map</title>
+    <link href="https://unpkg.com/maplibre-gl@5/dist/maplibre-gl.css" rel="stylesheet" />
+    <style>
+      html, body, #map { margin: 0; height: 100%; }
+    </style>
+  </head>
+  <body>
+    <div id="map"></div>
+    <script src="https://unpkg.com/maplibre-gl@5/dist/maplibre-gl.js"></script>
+    <script>
+      const map = new maplibregl.Map({
+        container: "map",
+        // 3D style from OpenFreeMap. If it fails, use the line below instead:
+        // style: "https://tiles.openfreemap.org/styles/liberty",
+        style: "https://tiles.openfreemap.org/styles/liberty",
+        center: [77.5946, 12.9716], // Bengaluru (3D buildings). Whole KA: [76.0, 14.5] zoom 7
+        zoom: 15.2,
+        pitch: 60,
+        bearing: -20,
+        maxPitch: 85,
+      });
+
+      map.addControl(new maplibregl.NavigationControl(), "top-right");
+    </script>
+  </body>
+</html>

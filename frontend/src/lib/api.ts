@@ -14,11 +14,8 @@ import {
  */
 
 const API_URL =
-  process.env.NEXT_PUBLIC_API_URL !== undefined
-    ? process.env.NEXT_PUBLIC_API_URL
-    : typeof window !== 'undefined'
-    ? ''
-    : process.env.BACKEND_URL || 'http://127.0.0.1:8000';
+  process.env.NEXT_PUBLIC_API_URL ||
+  (typeof window !== 'undefined' ? '' : 'http://127.0.0.1:8000');
 
 
 /*
@@ -232,8 +229,7 @@ function mapClassificationEnum(
 
 
   if (
-    v === 'UNCLASSIFIED' ||
-    v === 'PENDING'
+    v === 'UNCLASSIFIED'
   ) {
 
     return ClassificationType.UNCLASSIFIED;
@@ -466,10 +462,6 @@ export async function fetchClassifiedHotspots(
             risk_level:
               classification.risk_level ||
               'LOW',
-
-            source_data:
-              classification.source_data ||
-              null,
           },
 
 
@@ -549,40 +541,16 @@ export async function fetchRealtimeHotspots(
       `${API_URL}/api/v1/firms/realtime?country=${country}&days=${days}`
     );
 
+
   if (!res.ok) {
+
     throw new Error(
       'Failed to fetch real-time hotspots'
     );
   }
 
-  const data = await res.json();
-  if (data?.type === 'FeatureCollection' && Array.isArray(data.features)) {
-    return data.features.map((feature: any, index: number) => {
-      const p = feature.properties || {};
-      const coords = feature.geometry?.coordinates || [0, 0];
-      return {
-        id: String(feature.id ?? p.id ?? `firms-${index}`),
-        latitude: Number(coords[1]),
-        longitude: Number(coords[0]),
-        brightness: Number(p.brightness ?? p.bright_ti4 ?? 0),
-        scan: Number(p.scan ?? 0),
-        track: Number(p.track ?? 0),
-        acq_date: String(p.acq_date || ''),
-        acq_time: String(p.acq_time || ''),
-        satellite: String(p.satellite || ''),
-        instrument: String(p.instrument || ''),
-        confidence: p.confidence ?? 'nominal',
-        version: String(p.version || ''),
-        bright_t31: Number(p.bright_t31 ?? p.bright_ti5 ?? 0),
-        frp: Number(p.frp ?? 0),
-        daynight: String(p.daynight || 'D'),
-        bright_ti4: p.bright_ti4 != null ? Number(p.bright_ti4) : undefined,
-        bright_ti5: p.bright_ti5 != null ? Number(p.bright_ti5) : undefined,
-      };
-    });
-  }
 
-  return Array.isArray(data) ? data : [];
+  return res.json();
 }
 
 
