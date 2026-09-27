@@ -778,10 +778,8 @@ export function GlobalStateProvider({
 
 
       if (!response.ok) {
-
-        throw new Error(
-          `Failed to fetch current FIRMS observations (${response.status})`
-        );
+        console.warn(`[VERTEX] FIRMS realtime API status ${response.status}; using classified database stream.`);
+        return [];
       }
 
 
