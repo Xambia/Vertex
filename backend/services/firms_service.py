@@ -244,9 +244,19 @@ async def _fetch_and_parse(url: str) -> List[FIRMSHotspot]:
         logger.warning("FIRMS_MAP_KEY not configured, skipping live query.")
         return []
 
-    async with httpx.AsyncClient(verify=False) as client:
-        try:
-            response = await client.get(url, timeout=15.0)
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36 VERTEX-Platform/1.0",
+        "Accept": "text/csv,text/plain,*/*"
+    }
+
+    try:
+        async with httpx.AsyncClient(
+            headers=headers,
+            timeout=httpx.Timeout(15.0, connect=8.0),
+            follow_redirects=True,
+            verify=False
+        ) as client:
+            response = await client.get(url)
             response.raise_for_status()
 
             csv_data = response.text
@@ -295,9 +305,9 @@ async def _fetch_and_parse(url: str) -> List[FIRMSHotspot]:
 
             logger.info(f"Fetched {len(hotspots)} hotspots from FIRMS URL")
             return hotspots
-        except httpx.HTTPStatusError as e:
-            logger.error(f"FIRMS API HTTP error {e.response.status_code}: {e}")
-            return []
-        except Exception as e:
-            logger.error(f"Error fetching FIRMS data: {e}")
-            return []
+    except httpx.HTTPStatusError as e:
+        logger.error(f"FIRMS API HTTP error {e.response.status_code}: {e}")
+        return []
+    except Exception as e:
+        logger.error(f"Error fetching FIRMS data ({type(e).__name__}): {repr(e)}")
+        return []
