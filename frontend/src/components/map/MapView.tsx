@@ -170,16 +170,35 @@ export function MapView({
   }, []);
 
   const baseMapStyle = useMemo(() => {
+    // 1. OpenFreeMap Vector Styles
+    if (
+      mapStyle === 'OpenFreeMap Liberty (Vector 3D)' ||
+      mapStyle === 'Liberty (Vector 3D)' ||
+      mapStyle === 'liberty'
+    ) {
+      return 'https://tiles.openfreemap.org/styles/liberty';
+    }
+    if (
+      mapStyle === 'OpenFreeMap Bright' ||
+      mapStyle === 'Bright (Vector)' ||
+      mapStyle === 'bright'
+    ) {
+      return 'https://tiles.openfreemap.org/styles/bright';
+    }
+    if (
+      mapStyle === 'OpenFreeMap Positron (Minimal Light)' ||
+      mapStyle === 'Positron (Minimal Light)' ||
+      mapStyle === 'positron'
+    ) {
+      return 'https://tiles.openfreemap.org/styles/positron';
+    }
+
+    // 2. Satellite Imagery (Esri World Imagery + Places reference overlay)
     const isSatellite =
       mapStyle === 'Esri World Imagery (Satellite)' ||
       mapStyle === 'Satellite' ||
-      mapStyle === 'Esri Satellite';
-
-    const isDark =
-      mapStyle === 'Dark Tactical' ||
-      mapStyle === 'OpenFreeMap Dark' ||
-      mapStyle === 'Dark Canvas' ||
-      mapStyle === 'Carto Dark Matter';
+      mapStyle === 'Esri Satellite' ||
+      mapStyle === 'Satellite Imagery (Esri)';
 
     if (isSatellite) {
       return {
@@ -226,6 +245,14 @@ export function MapView({
       };
     }
 
+    // 3. Carto Dark (OSM Dark)
+    const isDark =
+      mapStyle === 'Carto Dark (OSM Dark)' ||
+      mapStyle === 'Dark Tactical' ||
+      mapStyle === 'OpenFreeMap Dark' ||
+      mapStyle === 'Dark Canvas' ||
+      mapStyle === 'Carto Dark Matter';
+
     if (isDark) {
       return {
         version: 8,
@@ -233,12 +260,12 @@ export function MapView({
           'dark-tiles': {
             type: 'raster',
             tiles: [
-              'https://a.basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}@2x.png',
-              'https://b.basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}@2x.png',
-              'https://c.basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}@2x.png',
-              'https://d.basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}@2x.png',
+              'https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png',
+              'https://b.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png',
+              'https://c.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png',
+              'https://d.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png',
             ],
-            tileSize: 512,
+            tileSize: 256,
             attribution: '&copy; <a href="https://carto.com/">CARTO</a> &copy; OpenStreetMap contributors',
             maxzoom: 19,
           },
@@ -255,7 +282,7 @@ export function MapView({
       };
     }
 
-    // OpenStreetMap standard world map style
+    // 4. Default: Standard OpenStreetMap (Raster)
     return {
       version: 8,
       sources: {
