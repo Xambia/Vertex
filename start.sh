@@ -5,6 +5,7 @@ echo "=========================================="
 echo " Starting VERTEX Unified Container on Render"
 echo "=========================================="
 
+export HOSTNAME="0.0.0.0"
 export BACKEND_PORT=${BACKEND_PORT:-8000}
 export PORT=${PORT:-3000}
 export BACKEND_URL="http://127.0.0.1:${BACKEND_PORT}"
@@ -17,11 +18,13 @@ BACKEND_PID=$!
 echo "[VERTEX] Starting Next.js frontend on port ${PORT}..."
 cd /app/frontend
 if [ -f ".next/standalone/server.js" ]; then
-    PORT=${PORT} node .next/standalone/server.js &
+    PORT=${PORT} HOSTNAME="0.0.0.0" node .next/standalone/server.js &
+elif [ -f ".next/standalone/frontend/server.js" ]; then
+    PORT=${PORT} HOSTNAME="0.0.0.0" node .next/standalone/frontend/server.js &
 elif [ -f "server.js" ]; then
-    PORT=${PORT} node server.js &
+    PORT=${PORT} HOSTNAME="0.0.0.0" node server.js &
 else
-    npm start -- -p ${PORT} &
+    npm start -- -H 0.0.0.0 -p ${PORT} &
 fi
 FRONTEND_PID=$!
 

@@ -57,6 +57,7 @@ COPY start.sh ./
 RUN chmod +x start.sh
 
 # Environment settings
+ENV HOSTNAME="0.0.0.0"
 ENV PORT=3000
 ENV BACKEND_PORT=8000
 ENV BACKEND_URL="http://127.0.0.1:8000"
