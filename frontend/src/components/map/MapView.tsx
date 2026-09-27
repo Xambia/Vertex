@@ -25,7 +25,21 @@ export function MapView({
   zoom = DEFAULT_ZOOM,
 }: MapViewProps) {
   const { mapStyle, mapCenter: savedCenter, mapZoom: savedZoom, setMapCenter, setMapZoom } = useGlobalState();
-  const visibleHotspots = hotspots;
+  
+  // Cap displayed map hotspots to top 150 highest priority events (CRITICAL/HIGH risk first, then by FRP)
+  const visibleHotspots = useMemo(() => {
+    if (!Array.isArray(hotspots)) return [];
+    const sorted = [...hotspots].sort((a, b) => {
+      const rA = a?.classification?.risk_level?.toUpperCase();
+      const rB = b?.classification?.risk_level?.toUpperCase();
+      const isUrgentA = rA === 'CRITICAL' || rA === 'HIGH';
+      const isUrgentB = rB === 'CRITICAL' || rB === 'HIGH';
+      if (isUrgentA && !isUrgentB) return -1;
+      if (!isUrgentA && isUrgentB) return 1;
+      return Number(b?.hotspot?.frp || 0) - Number(a?.hotspot?.frp || 0);
+    });
+    return sorted.slice(0, 150);
+  }, [hotspots]);
   const [mounted, setMounted] = useState(false);
   const mapRef = useRef<MapRef>(null);
   const hasAutoFitted = useRef(false);
