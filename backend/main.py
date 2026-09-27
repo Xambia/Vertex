@@ -8,7 +8,7 @@ from config import settings
 from limiter import limiter
 
 from routers import health, firms, osm, hotspots, analytics, satellite
-from db.supabase_client import supabase_anon, seed_admin_user
+from db.supabase_client import supabase_service, seed_admin_user
 from jobs.scheduler import start_scheduler, stop_scheduler
 
 logging.basicConfig(level=logging.INFO)
@@ -64,7 +64,7 @@ async def startup_event():
     
     # Simple Supabase connection check
     try:
-        supabase_anon.table("hotspots").select("id").limit(1).execute()
+        supabase_service.table("hotspots").select("id").limit(1).execute()
         logger.info("Supabase connection initialized successfully.")
     except Exception as e:
         logger.warning(f"Could not reach Supabase tables on startup (ignoring): {e}")
