@@ -24,6 +24,10 @@ class FIRMSHotspot(BaseModel):
             return f"{v:04d}"
         return str(v) if v is not None else None
 
+    @field_validator('confidence', mode='before')
+    def validate_confidence(cls, v):
+        return str(v) if v is not None else None
+
 class HotspotGeoJSON(BaseModel):
     type: str = "Feature"
     geometry: Dict[str, Any]
