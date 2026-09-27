@@ -30,8 +30,11 @@ import {
 } from './constants';
 
 const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL ||
-  'http://localhost:8000';
+  process.env.NEXT_PUBLIC_API_URL !== undefined
+    ? process.env.NEXT_PUBLIC_API_URL
+    : typeof window !== 'undefined'
+    ? ''
+    : process.env.BACKEND_URL || 'http://127.0.0.1:8000';
 
 // Suppress harmless browser AbortErrors caused by component unmounting,
 // rapid state updates, or MapLibre GL tile cancellation.
