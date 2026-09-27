@@ -246,7 +246,7 @@ async def _fetch_and_parse(url: str) -> List[FIRMSHotspot]:
 
     async with httpx.AsyncClient(verify=False) as client:
         try:
-            response = await client.get(url, timeout=60.0)
+            response = await client.get(url, timeout=15.0)
             response.raise_for_status()
 
             csv_data = response.text
