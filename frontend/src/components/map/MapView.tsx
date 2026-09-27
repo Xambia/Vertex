@@ -170,30 +170,7 @@ export function MapView({
   }, []);
 
   const baseMapStyle = useMemo(() => {
-    // 1. OpenFreeMap Vector Styles
-    if (
-      mapStyle === 'OpenFreeMap Liberty (Vector 3D)' ||
-      mapStyle === 'Liberty (Vector 3D)' ||
-      mapStyle === 'liberty'
-    ) {
-      return 'https://tiles.openfreemap.org/styles/liberty';
-    }
-    if (
-      mapStyle === 'OpenFreeMap Bright' ||
-      mapStyle === 'Bright (Vector)' ||
-      mapStyle === 'bright'
-    ) {
-      return 'https://tiles.openfreemap.org/styles/bright';
-    }
-    if (
-      mapStyle === 'OpenFreeMap Positron (Minimal Light)' ||
-      mapStyle === 'Positron (Minimal Light)' ||
-      mapStyle === 'positron'
-    ) {
-      return 'https://tiles.openfreemap.org/styles/positron';
-    }
-
-    // 2. Satellite Imagery (Esri World Imagery + Places reference overlay)
+    // 1. Satellite Imagery (Esri World Imagery + Places reference overlay)
     const isSatellite =
       mapStyle === 'Esri World Imagery (Satellite)' ||
       mapStyle === 'Satellite' ||
@@ -245,10 +222,10 @@ export function MapView({
       };
     }
 
-    // 3. Carto Dark (OSM Dark)
+    // 2. Dark Tactical (Carto Dark / Tactical Canvas)
     const isDark =
-      mapStyle === 'Carto Dark (OSM Dark)' ||
       mapStyle === 'Dark Tactical' ||
+      mapStyle === 'Carto Dark (OSM Dark)' ||
       mapStyle === 'OpenFreeMap Dark' ||
       mapStyle === 'Dark Canvas' ||
       mapStyle === 'Carto Dark Matter';
@@ -282,7 +259,7 @@ export function MapView({
       };
     }
 
-    // 4. Default: Standard OpenStreetMap (Raster)
+    // 3. Default: Street / Terrain Light (Standard OpenStreetMap Raster)
     return {
       version: 8,
       sources: {

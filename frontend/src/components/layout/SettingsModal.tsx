@@ -61,16 +61,13 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
                   <span className="text-[10px] text-secondary">Satellite or tactical dark view</span>
                 </div>
                 <select 
-                  value={localMapStyle} 
+                  value={localMapStyle === 'Dark Canvas' ? 'Dark Tactical' : localMapStyle} 
                   onChange={(e) => setLocalMapStyle(e.target.value)}
                   className="bg-surface border border-outline-variant text-[11px] font-mono px-2 py-1 outline-none focus:border-primary text-on-surface"
                 >
-                  <option value="OSM Light">Standard OpenStreetMap (Raster)</option>
-                  <option value="OpenFreeMap Liberty (Vector 3D)">OpenFreeMap Liberty (Vector 3D)</option>
-                  <option value="OpenFreeMap Bright">OpenFreeMap Bright</option>
-                  <option value="OpenFreeMap Positron (Minimal Light)">OpenFreeMap Positron (Minimal Light)</option>
-                  <option value="Carto Dark (OSM Dark)">Carto Dark (OSM Dark)</option>
                   <option value="Esri World Imagery (Satellite)">Esri World Imagery (Satellite)</option>
+                  <option value="Dark Tactical">Dark Tactical</option>
+                  <option value="OSM Light">Street / Terrain Light (OSM)</option>
                 </select>
               </div>
 

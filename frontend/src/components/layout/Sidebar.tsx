@@ -736,53 +736,32 @@ export function Sidebar({
               <div className="space-y-2.5">
                 {[
                   {
-                    id: 'OSM Light',
-                    name: 'Standard OpenStreetMap',
-                    provider: 'OSM Raster (tile.openstreetmap.org)',
-                    icon: 'map',
-                    badge: 'STANDARD',
+                    id: 'Esri World Imagery (Satellite)',
+                    name: 'Satellite Imagery',
+                    provider: 'Esri World Imagery',
+                    icon: 'satellite_alt',
+                    badge: 'PHOTOGRAPHIC',
                   },
                   {
-                    id: 'OpenFreeMap Liberty (Vector 3D)',
-                    name: 'OpenFreeMap Liberty',
-                    provider: 'Vector 3D Buildings (tiles.openfreemap.org)',
-                    icon: 'apartment',
-                    badge: 'VECTOR 3D',
-                  },
-                  {
-                    id: 'OpenFreeMap Bright',
-                    name: 'OpenFreeMap Bright',
-                    provider: 'Clean Light Vector',
-                    icon: 'light_mode',
-                    badge: 'VECTOR',
-                  },
-                  {
-                    id: 'OpenFreeMap Positron (Minimal Light)',
-                    name: 'OpenFreeMap Positron',
-                    provider: 'Minimal Light Canvas (Great for fire dots)',
-                    icon: 'dashboard',
-                    badge: 'MINIMAL',
-                  },
-                  {
-                    id: 'Carto Dark (OSM Dark)',
-                    name: 'Carto Dark',
-                    provider: 'Dark Tactical Canvas (OSM Dark)',
+                    id: 'Dark Tactical',
+                    name: 'Dark Tactical',
+                    provider: 'Tactical Dark Canvas',
                     icon: 'contrast',
                     badge: 'TACTICAL',
                   },
                   {
-                    id: 'Esri World Imagery (Satellite)',
-                    name: 'Satellite Imagery',
-                    provider: 'Esri World Imagery + Places Reference',
-                    icon: 'satellite_alt',
-                    badge: 'PHOTOGRAPHIC',
+                    id: 'OSM Light',
+                    name: 'Street / Terrain Light',
+                    provider: 'OpenStreetMap',
+                    icon: 'map',
+                    badge: 'REFERENCE',
                   },
                 ].map((layer) => {
                   const isSelected =
                     mapStyle === layer.id ||
-                    (layer.id === 'OSM Light' && (mapStyle === 'Standard OpenStreetMap' || mapStyle === 'OpenStreetMap')) ||
-                    (layer.id.includes('Satellite') && mapStyle === 'Satellite') ||
-                    (layer.id.includes('Carto Dark') && (mapStyle === 'Dark Tactical' || mapStyle === 'Dark Canvas' || mapStyle === 'OpenFreeMap Dark'));
+                    (layer.id.includes('Satellite') && (mapStyle === 'Satellite' || mapStyle === 'Esri Satellite' || mapStyle === 'Satellite Imagery (Esri)')) ||
+                    (layer.id === 'Dark Tactical' && (mapStyle === 'Dark Canvas' || mapStyle === 'OpenFreeMap Dark' || mapStyle === 'Carto Dark (OSM Dark)' || mapStyle === 'Carto Dark Matter')) ||
+                    (layer.id === 'OSM Light' && (mapStyle === 'Standard OpenStreetMap' || mapStyle === 'OpenStreetMap'));
 
                   return (
                     <button
