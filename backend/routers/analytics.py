@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Request
+from fastapi.responses import JSONResponse
 from routers.hotspots import latest_results
 from limiter import limiter
 import logging
@@ -38,7 +39,7 @@ async def get_analytics_summary(request: Request):
             start += page_size
             
         if not all_data:
-            return default_summary
+            return JSONResponse(content=default_summary)
         
         counts = {}
         risks = {}
@@ -76,7 +77,7 @@ async def get_analytics_summary(request: Request):
         
         total = ai_classified + ai_pending
         
-        return {
+        return JSONResponse(content={
             "total_hotspots": total,
             "total_firms_observations": total,
             "ai_classified": ai_classified,
@@ -88,7 +89,7 @@ async def get_analytics_summary(request: Request):
                 "max": round(max(frps), 2) if frps else 0,
                 "avg": round(sum(frps) / len(frps), 2) if frps else 0
             }
-        }
+        })
     except Exception as e:
         logger.warning(f"Database query failed in analytics summary (returning fallback): {e}")
-        return default_summary
+        return JSONResponse(content=default_summary)

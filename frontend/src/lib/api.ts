@@ -134,18 +134,16 @@ export async function fetchAnalyticsSummary(): Promise<any> {
 
 
   if (!res.ok) {
-
-    if (res.status === 503) {
-
-      throw new Error(
-        '503: Database connection failed'
-      );
-    }
-
-
-    throw new Error(
-      'Failed to fetch analytics summary'
-    );
+    console.warn(`[VERTEX] Analytics summary API status ${res.status}; using fallback summary.`);
+    return {
+      total_hotspots: 0,
+      total_firms_observations: 0,
+      ai_classified: 0,
+      ai_pending: 0,
+      classification_counts: {},
+      risk_level_counts: {},
+      frp_statistics: { min: 0, max: 0, avg: 0 }
+    };
   }
 
 
@@ -261,20 +259,10 @@ export async function fetchClassifiedHotspots(
     );
 
 
-  if (!res.ok) {
-
-    if (res.status === 503) {
-
-      throw new Error(
-        'Database connection failed'
-      );
+    if (!res.ok) {
+      console.warn(`[VERTEX] Classified hotspots API status ${res.status}; returning empty fallback.`);
+      return [];
     }
-
-
-    throw new Error(
-      'Failed to fetch classified hotspots'
-    );
-  }
 
 
   const geojson =

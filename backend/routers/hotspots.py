@@ -1,5 +1,6 @@
 import asyncio
 from fastapi import APIRouter, Query, BackgroundTasks, HTTPException, Request, Depends
+from fastapi.responses import JSONResponse
 from typing import List, Dict, Any, Optional
 import logging
 import time
@@ -127,15 +128,15 @@ async def get_classified_hotspots(
                 "timestamp": time.time(),
                 "data": result
             }
-        return result
+        return JSONResponse(content=result)
     except Exception as e:
         logger.warning(f"Database query failed, returning cached or empty features (non-blocking): {e}")
         if _classified_cache.get("data") and _classified_cache["data"].get("features"):
-            return _classified_cache["data"]
-        return {
+            return JSONResponse(content=_classified_cache["data"])
+        return JSONResponse(content={
             "type": "FeatureCollection",
             "features": []
-        }
+        })
 
 @router.post("/persistent-sources/calculate")
 @limiter.limit("5/minute")

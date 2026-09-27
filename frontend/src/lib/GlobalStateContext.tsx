@@ -1018,14 +1018,14 @@ export function GlobalStateProvider({
           initialClassifiedData,
           currentMapData,
         ] = await Promise.all([
-
-          fetchClassifiedHotspots(
-            'IND',
-            1
-          ),
-
-          fetchAllCurrentMapHotspots(),
-
+          fetchClassifiedHotspots('IND', 1).catch((e) => {
+            console.warn('[VERTEX] Classified database stream fetch failed; using empty fallback:', e);
+            return [];
+          }),
+          fetchAllCurrentMapHotspots().catch((e) => {
+            console.warn('[VERTEX] Live FIRMS map stream fetch failed:', e);
+            return [];
+          }),
         ]);
 
 
