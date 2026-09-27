@@ -170,18 +170,24 @@ export function MapView({
   }, []);
 
   const baseMapStyle = useMemo(() => {
-    // 1. Satellite Imagery (Esri World Imagery + Places reference overlay)
     const isSatellite =
       mapStyle === 'Esri World Imagery (Satellite)' ||
       mapStyle === 'Satellite' ||
       mapStyle === 'Esri Satellite' ||
       mapStyle === 'Satellite Imagery (Esri)';
 
+    const isDark =
+      mapStyle === 'Dark Tactical' ||
+      mapStyle === 'Carto Dark (OSM Dark)' ||
+      mapStyle === 'OpenFreeMap Dark' ||
+      mapStyle === 'Dark Canvas' ||
+      mapStyle === 'Carto Dark Matter';
+
     if (isSatellite) {
       return {
         version: 8,
         sources: {
-          'satellite-tiles': {
+          'base-tiles': {
             type: 'raster',
             tiles: [
               'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
@@ -202,14 +208,14 @@ export function MapView({
         },
         layers: [
           {
-            id: 'satellite-layer',
+            id: 'base-tiles-layer',
             type: 'raster',
-            source: 'satellite-tiles',
+            source: 'base-tiles',
             minzoom: 0,
             maxzoom: 22,
           },
           {
-            id: 'places-layer',
+            id: 'places-tiles-layer',
             type: 'raster',
             source: 'places-tiles',
             minzoom: 0,
@@ -222,19 +228,11 @@ export function MapView({
       };
     }
 
-    // 2. Dark Tactical (Carto Dark / Tactical Canvas)
-    const isDark =
-      mapStyle === 'Dark Tactical' ||
-      mapStyle === 'Carto Dark (OSM Dark)' ||
-      mapStyle === 'OpenFreeMap Dark' ||
-      mapStyle === 'Dark Canvas' ||
-      mapStyle === 'Carto Dark Matter';
-
     if (isDark) {
       return {
         version: 8,
         sources: {
-          'dark-tiles': {
+          'base-tiles': {
             type: 'raster',
             tiles: [
               'https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png',
@@ -249,9 +247,9 @@ export function MapView({
         },
         layers: [
           {
-            id: 'dark-layer',
+            id: 'base-tiles-layer',
             type: 'raster',
-            source: 'dark-tiles',
+            source: 'base-tiles',
             minzoom: 0,
             maxzoom: 22,
           },
@@ -259,11 +257,11 @@ export function MapView({
       };
     }
 
-    // 3. Default: Street / Terrain Light (Standard OpenStreetMap Raster)
+    // Default: Street / Terrain Light (Standard OpenStreetMap Raster)
     return {
       version: 8,
       sources: {
-        'osm-tiles': {
+        'base-tiles': {
           type: 'raster',
           tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
           tileSize: 256,
@@ -273,9 +271,9 @@ export function MapView({
       },
       layers: [
         {
-          id: 'osm-tiles-layer',
+          id: 'base-tiles-layer',
           type: 'raster',
-          source: 'osm-tiles',
+          source: 'base-tiles',
           minzoom: 0,
           maxzoom: 22,
         },

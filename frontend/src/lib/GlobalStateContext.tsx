@@ -634,7 +634,13 @@ export function GlobalStateProvider({
         'vtx_mapStyle'
       );
 
-    if (savedStyle && savedStyle === 'Esri World Imagery (Satellite)') {
+    const validStyles = [
+      'Esri World Imagery (Satellite)',
+      'Dark Tactical',
+      'OSM Light',
+    ];
+
+    if (savedStyle && validStyles.includes(savedStyle)) {
       setMapStyleState(savedStyle);
     } else {
       setMapStyleState('OSM Light');
